@@ -670,20 +670,20 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
     // One finger or mouse: drag sideways to zoom the group to that span. Two fingers: pinch to zoom,
     // move them to pan. Double tap or double click resets. .cbox has touch-action: pan-y, so vertical
     // swipes still scroll the page and the browser leaves pinches on the charts to us.
-    const ch = charts[id], g = cfg.options.plugins.paper.group, ptrs = new Map();
+    const ch = charts[id], g = cfg.options.plugins.paper.group, ptrs = new Map(), px = e => e.clientX - el.getBoundingClientRect().left;
     const group = () => Object.values(charts).filter(c => c.options.plugins.paper && c.options.plugins.paper.group === g);
     el.onpointerdown = e => {
-      ptrs.set(e.pointerId, e.offsetX); try { el.setPointerCapture(e.pointerId); } catch (_) { }
+      ptrs.set(e.pointerId, px(e)); try { el.setPointerCapture(e.pointerId); } catch (_) { }
       if (ptrs.size === 2) {
         S.drag = null; const [x0, x1] = [...ptrs.values()], sc = ch.scales.x, ca = ch.chartArea;
         el._pinch = { d0: Math.max(20, Math.abs(x1 - x0)), v0: sc.getValueForPixel((x0 + x1) / 2), span0: sc.max - sc.min, left: ca.left, w: ca.right - ca.left, range: null };
         return;
       }
       if (ptrs.size > 2) return;
-      const v = ch.scales.x.getValueForPixel(e.offsetX); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { g, v0: v, v1: v, px: e.offsetX, x1: null };
+      const v = ch.scales.x.getValueForPixel(px(e)); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { g, v0: v, v1: v, px: px(e), x1: null };
     };
     el.onpointermove = e => {
-      if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, e.offsetX);
+      if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, px(e));
       const pz = el._pinch;
       if (pz && ptrs.size === 2) {
         const [x0, x1] = [...ptrs.values()], full = cfg.options.plugins.paper.full || [ch.scales.x.min, ch.scales.x.max];
@@ -693,7 +693,7 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
         for (const c of group()) { c.options.scales.x.min = a; c.options.scales.x.max = a + span; c.update('none'); }
         return;
       }
-      if (!S.drag || S.drag.g !== g) return; if (Math.abs(e.offsetX - S.drag.px) > 8) { S.drag.x1 = e.offsetX; S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(e.offsetX))); redrawSynced(null, g); }
+      if (!S.drag || S.drag.g !== g) return; if (Math.abs(px(e) - S.drag.px) > 8) { S.drag.x1 = px(e); S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(px(e)))); redrawSynced(null, g); }
     };
     el.onpointerup = e => {
       ptrs.delete(e.pointerId);
