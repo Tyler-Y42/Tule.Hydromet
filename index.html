@@ -481,6 +481,7 @@ async function loadIEM(a, b) {
     if (out.hourly) {
       const days = []; for (let t = Date.UTC(...ymd(a - DAY).split('-').map((x, i) => i === 1 ? x - 1 : +x)); t <= b + DAY; t += DAY) days.push(ymd(t));
       const got = await pool(days, 4, d => fetchJSON(`${IEM}/hourly/${d}/${p.lat}/${p.lon}/json`, { tries: 2, timeout: 30000 }).catch(() => null));
+      if (!got.some(Boolean)) throw new Error('no radar history reachable');
       for (const d of got) if (d) for (const r of d.data) { const t = Date.parse(r.valid_utc); if (t > a && t <= b && r.hourly_precip_in != null) rows.push({ t0: t - HOUR, t, mm: r.hourly_precip_in * 25.4 }); }
     } else {
       const d = await fetchJSON(`${IEM}/multiday/${ymd(a - DAY)}/${ymd(b)}/${p.lat}/${p.lon}/json`, { timeout: 60000 });
@@ -555,9 +556,10 @@ function bearing(p, q) { const ang = (Math.atan2((q.lon - p.lon) * 86, (q.lat - 
 /* ======================================================================
    State, offline copy
    ====================================================================== */
-const S = { win: { preset: '7d', a: 0, b: 0 }, syn: null, P: {}, nws: null, iem: null, scan: null, radar: null, clim: null, status: {}, hoverX: null, drag: null, view: null, savedAt: null, fromCache: false };
+const S = { win: { preset: '7d', a: 0, b: 0 }, syn: null, P: {}, nws: null, iem: null, scan: null, radar: null, clim: null, status: {}, hoverX: null, drag: null, view: null, at: {}, stale: new Set() };
+const FEEDS = { nws: 'forecast', iem: 'radar history', radar: 'radar now', scan: 'soil and valley gauge', syn: 'gauges' };
 const SNAP_KEY = 'tule-hydromet-snapshot-v1';
-function saveSnap() { try { localStorage.setItem(SNAP_KEY, JSON.stringify({ savedAt: Date.now(), win: S.win, syn: S.syn, nws: S.nws, iem: S.iem, scan: S.scan, radar: S.radar })); } catch (e) { console.warn('could not save offline copy', e); } }
+function saveSnap() { try { localStorage.setItem(SNAP_KEY, JSON.stringify({ savedAt: Date.now(), at: S.at, win: S.win, syn: S.syn, nws: S.nws, iem: S.iem, scan: S.scan, radar: S.radar })); } catch (e) { console.warn('could not save offline copy', e); } }
 function loadSnap() { try { const x = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); return x && x.savedAt ? x : null; } catch (e) { return null; } }
 const SRC = { nws: ['NWS forecast', 'https://forecast.weather.gov/MapClick.php?lat=39.1873&lon=-113.443'], iem: ['Radar history', 'https://mesonet.agron.iastate.edu/iemre/'], radar: ['Radar now', 'https://mesonet.agron.iastate.edu/docs/nexrad_mosaic/'], scan: ['SCAN', SCAN.link], syn: ['MesoWest', 'https://mesowest.utah.edu/'] };
 function setStatus(k, cls, msg) { S.status[k] = { cls, msg }; document.getElementById('status').innerHTML = Object.entries(S.status).map(([k2, s]) => `<span class="${s.cls}"><a href="${SRC[k2][1]}" target="_blank" rel="noopener">${SRC[k2][0]}</a> ${s.msg}</span>`).join(' '); }
@@ -855,8 +857,10 @@ function processAll() {
 function safe(fn, name) { try { fn(); } catch (e) { console.error(name, e); } }
 function renderAll() {
   document.querySelectorAll('#presets [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === S.win.preset));
-  document.getElementById('meta').textContent = S.savedAt ? `${S.fromCache ? 'saved copy from' : 'loaded'} ${fmtDT(S.savedAt)}` : 'loading…';
-  document.getElementById('offline').textContent = S.fromCache ? `Offline copy saved ${fmtDT(S.savedAt, { tz: true })} (${ago(S.savedAt)}). It updates the next time this page loads with signal.` : '';
+  const fresh = Object.keys(FEEDS).filter(k => S.at[k] && !S.stale.has(k)).map(k => S.at[k]);
+  document.getElementById('meta').textContent = fresh.length ? `loaded ${fmtDT(Math.max(...fresh))}` : S.stale.size ? 'offline' : 'loading…';
+  const st = [...S.stale].filter(k => S.at[k]);
+  document.getElementById('offline').textContent = st.length ? `${st.length === Object.keys(FEEDS).length ? 'No signal' : `No signal for the ${st.map(k => FEEDS[k]).join(', ')}`}: showing the copy saved ${fmtDT(Math.min(...st.map(k => S.at[k])), { tz: true })} (${ago(Math.min(...st.map(k => S.at[k])))}).` : '';
   safe(processAll, 'process'); safe(renderTiles, 'tiles'); safe(renderForecast, 'forecast'); safe(renderHistory, 'history'); safe(renderMap, 'map'); safe(renderClimate, 'climate'); safe(renderTable, 'table');
 }
 let loadSeq = 0;
@@ -866,8 +870,8 @@ async function loadAll() {
   try { history.replaceState(null, '', location.pathname + location.search + '#w=' + S.win.preset); } catch (e) { }
   const { a, b } = S.win, ok = { n: 0 };
   for (const k of Object.keys(SRC)) setStatus(k, 'loading', 'loading');
-  const job = (k, p, set, msg) => p.then(d => { if (seq !== loadSeq) return; set(d); ok.n++; setStatus(k, 'ok', msg(d)); renderAll(); })
-    .catch(e => { if (seq !== loadSeq) return; setStatus(k, S.fromCache ? 'warn' : 'err', S.fromCache ? 'offline, showing saved copy' : e.message); });
+  const job = (k, p, set, msg) => p.then(d => { if (seq !== loadSeq) return; set(d); S.at[k] = Date.now(); S.stale.delete(k); ok.n++; setStatus(k, 'ok', msg(d)); renderAll(); })
+    .catch(e => { if (seq !== loadSeq) return; const have = S.at[k] != null; if (have) S.stale.add(k); setStatus(k, have ? 'warn' : 'err', have ? `saved copy, ${ago(S.at[k])}` : e.message); });
   await Promise.allSettled([
     job('nws', loadNWS(), d => { S.nws = d; }, d => `issued ${fmtWhen(d.camp.updated)}`),
     job('iem', loadIEM(a, b), d => { S.iem = d; }, d => d.hourly ? 'hourly, Stage IV' : 'daily, MRMS'),
@@ -876,7 +880,7 @@ async function loadAll() {
     job('syn', loadSynoptic(a, b), d => { S.syn = d; }, d => `${STATIONS.filter(s => d[s.id]).length}/${STATIONS.length} stations`),
   ]);
   if (seq !== loadSeq) return;
-  if (ok.n) { S.fromCache = false; S.savedAt = Date.now(); saveSnap(); }
+  if (ok.n) saveSnap();
   renderAll();
 }
 function initUI() {
@@ -893,7 +897,7 @@ const h = new URLSearchParams(location.hash.slice(1)).get('w'); if (h && ['72h',
 initUI();
 fetch('climate.json').then(r => r.json()).then(c => { S.clim = c; safe(renderClimate, 'climate'); }).catch(e => console.warn('climate', e));
 const snap = loadSnap();
-if (snap) { Object.assign(S, { syn: snap.syn, nws: snap.nws, iem: snap.iem, scan: snap.scan, radar: snap.radar, savedAt: snap.savedAt, fromCache: true }); if (snap.win && snap.win.preset === S.win.preset) Object.assign(S.win, snap.win); else Object.assign(S.win, windowFromPreset(S.win.preset)); renderAll(); }
+if (snap) { Object.assign(S, { syn: snap.syn, nws: snap.nws, iem: snap.iem, scan: snap.scan, radar: snap.radar, at: snap.at || Object.fromEntries(Object.keys(FEEDS).map(k => [k, snap.savedAt])) }); if (snap.win && snap.win.preset === S.win.preset) Object.assign(S.win, snap.win); else Object.assign(S.win, windowFromPreset(S.win.preset)); renderAll(); }
 loadAll();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
 let _rz = null; window.addEventListener('resize', () => { clearTimeout(_rz); _rz = setTimeout(() => { safe(renderForecast, 'forecast'); safe(renderHistory, 'history'); }, 250); });
