@@ -183,7 +183,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Wind and gusts, Painter Spring</span><span class="u">km/h</span></div><ul class="kb" id="kb-fd"></ul><div class="cbox f"><canvas id="f-wind"></canvas></div>
       <p class="cap" id="cap-f"></p>
-      <div class="zoomnote">Drag sideways across a chart to zoom; double tap or double click to reset.</div>
+      <div class="zoomnote">Pinch or drag sideways to zoom; double tap or double click to reset.</div>
     </div>
     <div class="card">
       <div class="ch"><h3>Recent rain, Tule Valley</h3><span class="u" id="ts-range"></span>
@@ -193,7 +193,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Soil moisture, Tule Valley SCAN</span><span class="u">% by volume</span></div><ul class="kb" id="kb-hc"></ul><div class="cbox"><canvas id="h-soil"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
       <p class="cap" id="cap-h"></p>
-      <div class="zoomnote">Drag sideways across a chart to zoom; double tap or double click to reset.</div>
+      <div class="zoomnote">Pinch or drag sideways to zoom; double tap or double click to reset.</div>
     </div>
   </div>
   <div class="col">
@@ -667,18 +667,43 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
   charts[id] = new Chart(el, cfg);
   el.onmouseleave = () => { S.hover = null; redrawSynced(null); };
   if (cfg.options.plugins.paper.sync) {
-    // Drag across a chart (mouse or finger) to zoom its group; double click or double tap resets.
-    // .cbox has touch-action: pan-y, so vertical swipes still scroll the page.
-    const ch = charts[id], g = cfg.options.plugins.paper.group;
-    el.onpointerdown = e => { const v = ch.scales.x.getValueForPixel(e.offsetX); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { g, v0: v, v1: v, px: e.offsetX, x1: null }; try { el.setPointerCapture(e.pointerId); } catch (_) { } };
-    el.onpointermove = e => { if (!S.drag || S.drag.g !== g) return; if (Math.abs(e.offsetX - S.drag.px) > 8) { S.drag.x1 = e.offsetX; S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(e.offsetX))); redrawSynced(null, g); } };
+    // One finger or mouse: drag sideways to zoom the group to that span. Two fingers: pinch to zoom,
+    // move them to pan. Double tap or double click resets. .cbox has touch-action: pan-y, so vertical
+    // swipes still scroll the page and the browser leaves pinches on the charts to us.
+    const ch = charts[id], g = cfg.options.plugins.paper.group, ptrs = new Map();
+    const group = () => Object.values(charts).filter(c => c.options.plugins.paper && c.options.plugins.paper.group === g);
+    el.onpointerdown = e => {
+      ptrs.set(e.pointerId, e.offsetX); try { el.setPointerCapture(e.pointerId); } catch (_) { }
+      if (ptrs.size === 2) {
+        S.drag = null; const [x0, x1] = [...ptrs.values()], sc = ch.scales.x, ca = ch.chartArea;
+        el._pinch = { d0: Math.max(20, Math.abs(x1 - x0)), v0: sc.getValueForPixel((x0 + x1) / 2), span0: sc.max - sc.min, left: ca.left, w: ca.right - ca.left, range: null };
+        return;
+      }
+      if (ptrs.size > 2) return;
+      const v = ch.scales.x.getValueForPixel(e.offsetX); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { g, v0: v, v1: v, px: e.offsetX, x1: null };
+    };
+    el.onpointermove = e => {
+      if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, e.offsetX);
+      const pz = el._pinch;
+      if (pz && ptrs.size === 2) {
+        const [x0, x1] = [...ptrs.values()], full = cfg.options.plugins.paper.full || [ch.scales.x.min, ch.scales.x.max];
+        let span = Math.max(HOUR, Math.min(full[1] - full[0], pz.span0 * pz.d0 / Math.max(20, Math.abs(x1 - x0))));
+        let a = pz.v0 - ((x0 + x1) / 2 - pz.left) / pz.w * span; a = Math.max(full[0], Math.min(full[1] - span, a));
+        pz.range = [a, a + span];
+        for (const c of group()) { c.options.scales.x.min = a; c.options.scales.x.max = a + span; c.update('none'); }
+        return;
+      }
+      if (!S.drag || S.drag.g !== g) return; if (Math.abs(e.offsetX - S.drag.px) > 8) { S.drag.x1 = e.offsetX; S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(e.offsetX))); redrawSynced(null, g); }
+    };
     el.onpointerup = e => {
+      ptrs.delete(e.pointerId);
+      if (el._pinch) { if (ptrs.size === 0) { const r = el._pinch.range, full = cfg.options.plugins.paper.full; el._pinch = null; if (r) setView(g, full && r[1] - r[0] >= full[1] - full[0] - MIN ? null : r); } return; }
       const d = S.drag; S.drag = null;
       if (d && d.x1 != null && Math.abs(d.v1 - d.v0) > 20 * MIN) { setView(g, [Math.min(d.v0, d.v1), Math.max(d.v0, d.v1)]); return; }
       const now = Date.now(); if (e.pointerType !== 'mouse' && el._lastTap && now - el._lastTap < 350) { el._lastTap = 0; setView(g, null); return; } el._lastTap = now;
       redrawSynced(null, g);
     };
-    el.onpointercancel = () => { S.drag = null; redrawSynced(null, g); };
+    el.onpointercancel = e => { ptrs.delete(e.pointerId); if (!ptrs.size) { const r = el._pinch && el._pinch.range; el._pinch = null; S.drag = null; if (r) setView(g, r); else redrawSynced(null, g); } };
     el.ondblclick = () => setView(g, null);
   }
   return charts[id];
@@ -719,7 +744,7 @@ function renderTiles() {
 function renderForecast() {
   const n = S.nws; if (!n) return;
   const now = Date.now(), end = Math.max(...PTS.map(p => seriesEnd(n[p.key] ? n[p.key].pop : []) || now + DAY)), full = [now - 2 * HOUR, end], xr = S.views.f || full;
-  const band = { ...tripBand(), group: 'f' }, cut = s => s.filter(x => x.b > full[0] && x.a < full[1]);
+  const band = { ...tripBand(), group: 'f', full }, cut = s => s.filter(x => x.b > full[0] && x.a < full[1]);
   const line = (p, s, label, extra = {}) => ({ label: `${p.name}${label}`, endLabel: p === CAMP ? 'Camp' : 'Marjum', data: stepPts(cut(s)), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3], ...extra });
   const pop = [line(CAMP, n.camp.pop, ', rain'), line(MARJUM, n.marjum.pop, ', rain')];
   if (n.camp.thunder.some(x => x.v > 0)) pop.push({ label: 'Painter Spring, thunder', endLabel: 'Thunder', data: stepPts(cut(n.camp.thunder)), borderColor: '#555', backgroundColor: '#555', labelColor: '#555', borderWidth: 1.2, borderDash: [1, 2.5] });
@@ -753,19 +778,19 @@ function renderHistory() {
     ds.push({ type: 'bar', label: 'Painter Spring', data: S.iem.camp.filter(r => r.mm > 0).map(r => ({ x: r.t0 + (r.t - r.t0) / 2, y: r.mm })), backgroundColor: CAMP.color, barThickness: barW, grouped: false, order: 2 });
     ds.push({ type: 'line', label: 'Marjum Pass', data: S.iem.marjum.map(r => ({ x: r.t0 + (r.t - r.t0) / 2, y: r.mm })), borderColor: MARJUM.color, backgroundColor: MARJUM.color, borderWidth: 1.6, stepped: 'middle', order: 1 });
   }
-  timeChart('h-hr', ds, { type: 'bar', legend: true, xRange: [va, vb], rightPad: RIGHT_PAD, yTitle: hourly ? 'mm per hour' : 'mm per day', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: hourly ? 0.5 : 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} mm (${inch(c.parsed.y)})` });
+  timeChart('h-hr', ds, { type: 'bar', legend: true, xRange: [va, vb], paper: { full: [a, b] }, rightPad: RIGHT_PAD, yTitle: hourly ? 'mm per hour' : 'mm per day', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: hourly ? 0.5 : 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} mm (${inch(c.parsed.y)})` });
   const cum = [];
   const cumLine = (label, endName, incs, color, opts = {}) => { const pts = [{ x: a, y: 0 }]; let c = 0; for (const x of incs) if (x.t > a && x.t <= b && x.mm > 0) { c = r3(c + x.mm); pts.push({ x: x.t, y: c }); } pts.push({ x: Math.min(b, Date.now()), y: c }); return { label, endLabel: `${endName} ${mmStr(c, 1)}`, data: pts, borderColor: color, backgroundColor: color, labelColor: color, stepped: true, ...opts }; };
   if (S.iem) for (const p of PTS) cum.push(cumLine(`${p.name}, radar`, p === CAMP ? 'Camp' : 'Marjum', S.iem[p.key], p.color, { borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: [4, 3] }));
   for (const s of ALL_ST) { const p = S.P[s.id]; if (!p || !p.obs.length) continue; cum.push(cumLine(`${s.name} (${s.id}), ${ft(s.elev)} ft, ${kmFrom(CAMP, s).toFixed(0)} km`, s.short, p.incs.filter(x => x.include), s.color, { borderWidth: s.group === 'valley' ? 2.2 : 1.1, labelColor: s.group === 'valley' ? s.color : INK3 })); }
-  timeChart('h-cum', cum, { endLabels: true, decimate: false, xRange: [va, vb], yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
+  timeChart('h-cum', cum, { endLabels: true, decimate: false, xRange: [va, vb], paper: { full: [a, b] }, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
   const soil = [], SC = { 2: '#0072B2', 4: '#56B4E9', 8: '#009E73', 20: '#8a6d3b', 40: '#9a988f' };
   if (S.scan) for (const d of SMS_DEPTHS) { const v = S.scan.sms[d]; if (v && v.length) soil.push({ label: `${d} in deep`, endLabel: `${d} in`, data: v.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SC[d], backgroundColor: SC[d], labelColor: SC[d], borderWidth: d === 2 ? 2.2 : 1.4 }); }
-  timeChart('h-soil', soil, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Water, %', tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` });
+  timeChart('h-soil', soil, { endLabels: true, xRange: [va, vb], paper: { full: [a, b] }, reserveY2: true, yTitle: 'Water, %', tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` });
   const tds = [];
   if (S.scan && S.scan.tobs.length) tds.push({ label: 'Tule Valley SCAN, 4,600 ft', endLabel: `Valley ${ft(SCAN.elev)}`, data: S.scan.tobs.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SCAN.color, backgroundColor: SCAN.color, labelColor: SCAN.color, borderWidth: 2.2 });
   for (const s of STATIONS.filter(x => x.group === 'valley')) { const st = S.syn && S.syn[s.id]; if (!st || !st.v.air_temp) continue; const pts = []; st.t.forEach((t, i) => { const v = st.v.air_temp[i]; if (v != null && t >= a && t <= b) pts.push({ x: t, y: v }); }); if (pts.length) tds.push({ label: `${s.name}, ${ft(s.elev)} ft`, endLabel: `${s.short.replace('Valley ', '')} ${ft(s.elev)}`, data: pts, borderColor: s.color, backgroundColor: s.color, labelColor: s.color, borderWidth: 1.4 }); }
-  timeChart('h-temp', tds, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Air temp, °C', paper: { hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} °C` });
+  timeChart('h-temp', tds, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Air temp, °C', paper: { full: [a, b], hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} °C` });
   document.getElementById('ts-range').textContent = `${fmtDT(va)} to ${fmtDT(vb, { tz: true })}${S.views.h ? ' (zoomed)' : ''}`;
   const A = [], C = [];
   if (S.iem) { const rc = radarTotal(S.iem.camp, va, vb), rm = radarTotal(S.iem.marjum, va, vb); if (rc != null) A.push(rc < 0.25 && rm < 0.25 ? 'No measurable rain on radar at either point' : `Radar: ${mmIn(rc)} at Painter Spring, ${mmIn(rm)} on Marjum Pass`); }
