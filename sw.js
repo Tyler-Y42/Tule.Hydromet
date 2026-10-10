@@ -1,7 +1,7 @@
 // Offline support: the page shell, libraries and climatology are cached; the page itself
 // keeps its last data load in localStorage. Map tiles are cached as you view them.
-const CACHE = 'tule-v1';
-const CORE = ['./', './index.html', './keys.js', './climate.json', './manifest.webmanifest',
+const CACHE = 'tule-v2';
+const CORE = ['./', './index.html', './keys.js', './manifest.webmanifest',
   'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'];

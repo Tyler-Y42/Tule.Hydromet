@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tule Valley Hydromet</title>
-<meta name="description" content="Painter Spring and Marjum Pass, House Range, Utah: rain forecast, radar and gauge rain history, soil moisture, and mid October climatology.">
+<meta name="description" content="Painter Spring and Marjum Pass, House Range, Utah: rain forecast, radar and gauge rain history, and soil moisture.">
 <meta name="theme-color" content="#eef0f2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -153,8 +153,8 @@
   .hidden { display: none !important; }
   .offline { font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--flag); border-radius: 6px; padding: 6px 10px; margin: 0 0 8px; }
   .offline:empty { display: none; }
-  .cbox.f { height: 132px; } .cbox.clim { height: 190px; }
-  @media (max-width: 600px) { .cbox.f { height: 124px; } .cbox.clim { height: 176px; } }
+  .cbox.f { height: 132px; }
+  @media (max-width: 600px) { .cbox.f { height: 124px; } }
 </style>
 </head>
 <body>
@@ -203,13 +203,6 @@
       <p class="cap" id="cap-map"></p>
     </div>
     <div class="card">
-      <div class="ch"><h3>Mid October rain, 1991 to 2025</h3><span class="u">PRISM and the valley gauge</span></div>
-      <ul class="kb" id="kb-clim"></ul>
-      <div class="plab"><b class="pl">a</b><span class="pt">Chance of a wet day</span><span class="u">% of years with 1 mm or more</span></div><div class="cbox clim"><canvas id="c-wet"></canvas></div>
-      <div class="plab"><b class="pl">b</b><span class="pt">Oct 12 to 14 total by year</span><span class="u">mm</span></div><div class="cbox clim"><canvas id="c-years"></canvas></div>
-      <p class="cap" id="cap-clim"></p>
-    </div>
-    <div class="card">
       <div class="ch"><h3>Stations</h3><span class="u" id="st-asof"></span></div>
       <div class="tscroll"><table id="t-stations"></table></div>
       <p class="cap" id="t-stations-note"></p>
@@ -228,8 +221,6 @@
       <li>Gauges: Tule Valley SCAN (NRCS, hourly, from AWDB), Tule Valley RAWS (BLM, hourly cumulative), King Canyon (UDOT, 10 min) and Snake Valley (DRI) for context, from MesoWest. Increments are summed; negative steps count as 0; a jump over 10 mm in 10 min is left out unless another gauge also recorded rain within 30 min. No data is shown as no data, not 0.</li>
       <li>Soil moisture: SCAN sensors at 2, 4, 8, 20 and 40 in. A jump at 2 in that fades over a day or two is rain that soaked in.</li>
     </ul>
-    <h3>Climatology</h3>
-    <ul><li>PRISM daily precipitation 1991 to 2025, 20 Sep to 10 Nov, at both points (via IEM, on its 0.125° grid), and the SCAN gauge since 2011. "Wet day" is 1 mm or more. The chance curve is a 7 day centered average.</li></ul>
     <h3>Offline</h3>
     <ul><li>Every successful load is saved on this device. With no signal, the page opens from that copy and says when it was saved. The map only shows tiles you have already viewed.</li></ul>
   </div>
@@ -432,7 +423,7 @@ const CAMP = { key: 'camp', name: 'Painter Spring', lat: 39.1873, lon: -113.4430
 const MARJUM = { key: 'marjum', name: 'Marjum Pass', lat: 39.2544, lon: -113.3614, elev: 6238, color: '#E69F00' };
 const PTS = [CAMP, MARJUM];
 const NWS_GRID = { camp: 'https://api.weather.gov/gridpoints/SLC/38,112', marjum: 'https://api.weather.gov/gridpoints/SLC/41,114' };
-const TRIP = { a: denverToUtc(2026, 10, 12), b: denverToUtc(2026, 10, 15), label: 'Mon to Wed' };
+const TRIP = { a: denverToUtc(2026, 10, 12), b: denverToUtc(2026, 10, 15), label: 'Mon to Wed' }; // Mon 10/12 00:00 through the end of Wed 10/14
 const AWDB = 'https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1';
 const SCAN_TRIP = '2163:UT:SCAN', SCAN_TZ = -7 * HOUR; // SCAN hourly stamps are MST (checked against MesoWest TULU1)
 const SCAN = { id: 'TULU1', name: 'Tule Valley SCAN', short: 'Valley SCAN', elev: 4600, lat: 39.2372, lon: -113.4587, net: 'NRCS soil climate (SCAN)', group: 'valley', color: '#0072B2', link: 'https://wcc.sc.egov.usda.gov/nwcc/site?sitenum=2163' };
@@ -556,7 +547,7 @@ function bearing(p, q) { const ang = (Math.atan2((q.lon - p.lon) * 86, (q.lat - 
 /* ======================================================================
    State, offline copy
    ====================================================================== */
-const S = { win: { preset: '7d', a: 0, b: 0 }, syn: null, P: {}, nws: null, iem: null, scan: null, radar: null, clim: null, status: {}, hoverX: null, drag: null, view: null, at: {}, stale: new Set() };
+const S = { win: { preset: '7d', a: 0, b: 0 }, syn: null, P: {}, nws: null, iem: null, scan: null, radar: null, status: {}, hoverX: null, drag: null, view: null, at: {}, stale: new Set() };
 const FEEDS = { nws: 'forecast', iem: 'radar history', radar: 'radar now', scan: 'soil and valley gauge', syn: 'gauges' };
 const SNAP_KEY = 'tule-hydromet-snapshot-v1';
 function saveSnap() { try { localStorage.setItem(SNAP_KEY, JSON.stringify({ savedAt: Date.now(), at: S.at, win: S.win, syn: S.syn, nws: S.nws, iem: S.iem, scan: S.scan, radar: S.radar })); } catch (e) { console.warn('could not save offline copy', e); } }
@@ -689,7 +680,7 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
 const VIEW = () => S.view || [S.win.a, S.win.b];
 function setView(v) { S.view = v; document.getElementById('zoom-reset').classList.toggle('hidden', !v); safe(renderHistory, 'history'); }
 const put = (id, items) => { const el = document.getElementById(id); if (el) el.innerHTML = items.filter(Boolean).map(t => `<li>${t}</li>`).join(''); };
-const tripBand = () => ({ events: [{ start: TRIP.a, end: TRIP.b, label: 'Your trip' }], labels: true });
+const tripBand = () => ({ events: [{ start: TRIP.a, end: TRIP.b, label: 'Your trip, Mon to Wed' }], labels: true });
 const stepPts = (series, f = v => v) => { const out = []; for (const x of series) { out.push({ x: x.a, y: f(x.v) }); out.push({ x: x.b - 1, y: f(x.v) }); } return out; };
 
 function tripStats(key) {
@@ -699,9 +690,9 @@ function tripStats(key) {
 }
 function renderTiles() {
   const tiles = [], c = tripStats('camp'), m = tripStats('marjum'), now = Date.now();
-  tiles.push(['Rain chance, trip', c && c.pop.v != null ? `${c.pop.v}%` : '—', c && c.pop.v != null ? `highest, ${fmtDT(c.pop.at, { wd: true }).replace(/ \d+:\d+ [AP]M$/, '')}${m && m.pop.v != null ? `; Marjum ${m.pop.v}%` : ''}` : 'forecast not loaded', c && c.pop.v >= 40]);
-  tiles.push(['Forecast rain, trip', c ? (c.qpfFull ? `${c.qpf.toFixed(1)} mm` : c.qpf > 0 ? `≥ ${c.qpf.toFixed(1)} mm` : 'not issued yet') : '—', c ? (c.qpfFull ? `${inch(c.qpf)}; Marjum ${m ? m.qpf.toFixed(1) : '—'} mm` : `amounts run to ${fmtDT(c.qpfEnd)}`) : '', c && c.qpf >= 5]);
-  tiles.push(['Thunder chance, trip', c && c.thunder.v != null ? `${c.thunder.v}%` : '—', c && c.thunder.v ? `highest, ${fmtDT(c.thunder.at).replace(/ \d+:\d+ [AP]M$/, '')}` : 'none forecast', c && c.thunder.v >= 20]);
+  tiles.push(['Rain chance, Mon to Wed', c && c.pop.v != null ? `${c.pop.v}%` : '—', c && c.pop.v != null ? `highest, ${fmtDT(c.pop.at, { wd: true }).replace(/ \d+:\d+ [AP]M$/, '')}${m && m.pop.v != null ? `; Marjum ${m.pop.v}%` : ''}` : 'forecast not loaded', c && c.pop.v >= 40]);
+  tiles.push(['Forecast rain, Mon to Wed', c ? (c.qpfFull ? `${c.qpf.toFixed(1)} mm` : c.qpf > 0 ? `≥ ${c.qpf.toFixed(1)} mm` : 'not issued yet') : '—', c ? (c.qpfFull ? `${inch(c.qpf)}; Marjum ${m ? m.qpf.toFixed(1) : '—'} mm` : `amounts run to ${fmtDT(c.qpfEnd)}`) : '', c && c.qpf >= 5]);
+  tiles.push(['Thunder, Mon to Wed', c && c.thunder.v != null ? `${c.thunder.v}%` : '—', c && c.thunder.v ? `highest, ${fmtDT(c.thunder.at).replace(/ \d+:\d+ [AP]M$/, '')}` : 'none forecast', c && c.thunder.v >= 20]);
   const r7 = S.iem ? radarTotal(S.iem.camp, now - 7 * DAY, now) : null;
   tiles.push(['Rain, last 7 days', S.iem && S.iem.hourly && r7 != null ? `${r7.toFixed(1)} mm` : '—', S.iem && S.iem.hourly ? `radar at camp; valley SCAN ${mmStr(sumPrecip(S.P.TULU1, now - 7 * DAY, now).mm, 1)} mm` : 'pick 72 h or 7 d']);
   const rn = S.radar;
@@ -774,36 +765,6 @@ function renderHistory() {
   document.getElementById('cap-h').innerHTML = `<b>a</b> ${hourly ? 'NCEP Stage IV, radar corrected with gauges' : 'NOAA MRMS daily totals'}, at each point; distant radars miss light and shallow showers out here. <b>b</b> Dashed lines are the radar estimates; solid are gauges, gray ones outside the valley. Gauges catch only what falls on them, so a passing cell can soak one and miss the next. <b>c</b> A sharp rise at 2 in that fades over a day or two is rain that soaked in.`;
 }
 
-function renderClimate() {
-  const C = S.clim; if (!C) return;
-  const years = Object.keys(C.prism.camp).sort(), days = [];
-  for (let t = Date.UTC(2026, 8, 25); t <= Date.UTC(2026, 10, 5); t += DAY) days.push(new Date(t).toISOString().slice(5, 10));
-  const frac = key => days.map(d => years.filter(y => (C.prism[key][y][d] || 0) >= 1).length / years.length * 100);
-  const smooth = arr => arr.map((_, i) => { const w = arr.slice(Math.max(0, i - 3), i + 4); return w.reduce((s, v) => s + v, 0) / w.length; });
-  const fc = smooth(frac('camp')), fm = smooth(frac('marjum')), lab = days.map(d => `${+d.slice(0, 2)}/${+d.slice(3)}`);
-  const i0 = days.indexOf('10-12'), i1 = days.indexOf('10-14');
-  const ax = axisStyle(), tick = { color: INK, font: { size: 10.5, weight: '600' } };
-  const band = { id: 'tripband', beforeDatasetsDraw(ch) { const { ctx, chartArea: ca, scales: { x } } = ch; const x0 = x.getPixelForValue(i0) - 4, x1 = x.getPixelForValue(i1) + 4; ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.085)'; ctx.fillRect(x0, ca.top, x1 - x0, ca.bottom - ca.top); ctx.fillStyle = INK; ctx.font = '800 11px Arial'; ctx.fillText('Your trip', x0 + 2, ca.top + 10); ctx.restore(); } };
-  if (charts['c-wet']) charts['c-wet'].destroy();
-  charts['c-wet'] = new Chart(document.getElementById('c-wet'), { type: 'line', data: { labels: lab, datasets: [{ label: 'Painter Spring', data: fc, borderColor: CAMP.color, backgroundColor: CAMP.color, borderWidth: 2.5, pointRadius: 0 }, { label: 'Marjum Pass', data: fm, borderColor: MARJUM.color, backgroundColor: MARJUM.color, borderWidth: 1.6, borderDash: [4, 3], pointRadius: 0 }] },
-    options: { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, color: INK2, font: { size: 10 } } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)}% of years` } } },
-      scales: { x: { ...ax, title: { display: true, text: 'Date', color: INK, font: { size: 10.5, weight: '700' } }, ticks: { ...tick, autoSkip: false, maxRotation: 0, callback: (v, i) => /^(\d+)\/(1|8|15|22|29)$/.test(lab[i]) || lab[i] === '10/12' ? lab[i] : '' } }, y: { ...ax, min: 0, suggestedMax: 30, title: { display: true, text: 'Years wet, %', color: INK, font: { size: 10.5, weight: '700' } }, ticks: tick } } }, plugins: [band] });
-  const tripTot = (key, y) => ['10-12', '10-13', '10-14'].reduce((s, d) => s + (C.prism[key][y][d] || 0), 0);
-  const tc = years.map(y => tripTot('camp', y)), scanYears = Object.keys(C.scan || {});
-  const scanT = years.map(y => C.scan && C.scan[y] ? ['10-12', '10-13', '10-14'].reduce((s, d) => s + (C.scan[y][d] || 0), 0) : null);
-  if (charts['c-years']) charts['c-years'].destroy();
-  charts['c-years'] = new Chart(document.getElementById('c-years'), { data: { labels: years, datasets: [{ type: 'bar', label: 'Painter Spring (PRISM)', data: tc, backgroundColor: CAMP.color, barPercentage: 0.8, categoryPercentage: 0.9, order: 2 }, { type: 'line', label: 'Valley SCAN gauge', data: scanT, showLine: false, order: 1, pointStyle: 'circle', pointRadius: 3.5, pointBackgroundColor: '#fff', pointBorderColor: SCAN.color, pointBorderWidth: 1.5 }] },
-    options: { animation: false, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, color: INK2, font: { size: 10 } } }, tooltip: { callbacks: { label: c => c.parsed.y == null ? '' : `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm` } } },
-      scales: { x: { ...ax, title: { display: true, text: 'Year', color: INK, font: { size: 10.5, weight: '700' } }, ticks: { ...tick, autoSkip: true, maxRotation: 0, maxTicksLimit: 8 } }, y: { ...ax, beginAtZero: true, title: { display: true, text: 'mm', color: INK, font: { size: 10.5, weight: '700' } }, ticks: tick } } } });
-  const wet = tc.filter(v => v >= 1).length, mj = years.filter(y => tripTot('marjum', y) >= 1).length, sorted = [...tc].sort((x, y) => x - y), wettest = years[tc.indexOf(Math.max(...tc))];
-  const octMean = key => years.reduce((s, y) => s + Object.entries(C.prism[key][y]).filter(([d]) => d.startsWith('10-')).reduce((a2, [, v]) => a2 + (v || 0), 0), 0) / years.length;
-  const scanOct = scanYears.length ? scanYears.reduce((s, y) => s + Object.entries(C.scan[y]).filter(([d]) => d.startsWith('10-')).reduce((a2, [, v]) => a2 + (v || 0), 0), 0) / scanYears.length : null;
-  put('kb-clim', [`Rain of 1 mm or more fell sometime Oct 12 to 14 in ${wet} of ${years.length} years at Painter Spring (${Math.round(wet / years.length * 100)}%), ${mj} on Marjum Pass`,
-    `When it did, the median was ${(sorted.filter(v => v >= 1)[Math.floor(sorted.filter(v => v >= 1).length / 2)] || 0).toFixed(1)} mm; the wettest was ${Math.max(...tc).toFixed(1)} mm in ${wettest}`,
-    `October averages ${octMean('camp').toFixed(0)} mm at Painter Spring and ${octMean('marjum').toFixed(0)} mm on Marjum Pass${scanOct != null ? `; the valley floor gauge, ${scanOct.toFixed(0)} mm` : ''}`]);
-  document.getElementById('cap-clim').innerHTML = `PRISM is a gridded estimate built from gauges and terrain, read on a 0.125° grid, so it smooths single storms. The valley SCAN gauge (since 2011) sits 6 km north on the valley floor, 800 ft lower.`;
-}
-
 let map = null, radarLayer = null, layer = null;
 function renderMap() {
   if (!window.L) return;
@@ -861,7 +822,7 @@ function renderAll() {
   document.getElementById('meta').textContent = fresh.length ? `loaded ${fmtDT(Math.max(...fresh))}` : S.stale.size ? 'offline' : 'loading…';
   const st = [...S.stale].filter(k => S.at[k]);
   document.getElementById('offline').textContent = st.length ? `${st.length === Object.keys(FEEDS).length ? 'No signal' : `No signal for the ${st.map(k => FEEDS[k]).join(', ')}`}: showing the copy saved ${fmtDT(Math.min(...st.map(k => S.at[k])), { tz: true })} (${ago(Math.min(...st.map(k => S.at[k])))}).` : '';
-  safe(processAll, 'process'); safe(renderTiles, 'tiles'); safe(renderForecast, 'forecast'); safe(renderHistory, 'history'); safe(renderMap, 'map'); safe(renderClimate, 'climate'); safe(renderTable, 'table');
+  safe(processAll, 'process'); safe(renderTiles, 'tiles'); safe(renderForecast, 'forecast'); safe(renderHistory, 'history'); safe(renderMap, 'map'); safe(renderTable, 'table');
 }
 let loadSeq = 0;
 async function loadAll() {
@@ -889,13 +850,12 @@ function initUI() {
   document.getElementById('zoom-reset').onclick = () => setView(null);
   document.getElementById('map-radar').onchange = () => safe(renderMap, 'map');
   document.getElementById('sources').innerHTML = [
-    `Sources. Forecast: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank" rel="noopener">NWS gridded forecast API</a> (SLC office). Radar history: <a href="https://mesonet.agron.iastate.edu/iemre/" target="_blank" rel="noopener">IEM IEMRE</a> (NCEP Stage IV, NOAA MRMS, PRISM). Radar now: <a href="https://mesonet.agron.iastate.edu/docs/nexrad_mosaic/" target="_blank" rel="noopener">IEM NEXRAD mosaic</a>.`,
+    `Sources. Forecast: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank" rel="noopener">NWS gridded forecast API</a> (SLC office). Radar history: <a href="https://mesonet.agron.iastate.edu/iemre/" target="_blank" rel="noopener">IEM IEMRE</a> (NCEP Stage IV, NOAA MRMS). Radar now: <a href="https://mesonet.agron.iastate.edu/docs/nexrad_mosaic/" target="_blank" rel="noopener">IEM NEXRAD mosaic</a>.`,
     `Gauges: <a href="${SCAN.link}" target="_blank" rel="noopener">NRCS SCAN 2163 Tule Valley</a> via <a href="https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html" target="_blank" rel="noopener">AWDB</a>; ${STATIONS.map(s => `<a href="${mesoLink(s.id)}" target="_blank" rel="noopener">${s.id}</a>`).join(', ')} via the <a href="https://docs.synopticdata.com/services/time-series" target="_blank" rel="noopener">Synoptic API</a>. Map: Esri World Topo.`,
   ].join('<br>');
 }
 const h = new URLSearchParams(location.hash.slice(1)).get('w'); if (h && ['72h', '7d', '30d', '90d'].includes(h)) S.win.preset = h;
 initUI();
-fetch('climate.json').then(r => r.json()).then(c => { S.clim = c; safe(renderClimate, 'climate'); }).catch(e => console.warn('climate', e));
 const snap = loadSnap();
 if (snap) { Object.assign(S, { syn: snap.syn, nws: snap.nws, iem: snap.iem, scan: snap.scan, radar: snap.radar, at: snap.at || Object.fromEntries(Object.keys(FEEDS).map(k => [k, snap.savedAt])) }); if (snap.win && snap.win.preset === S.win.preset) Object.assign(S.win, snap.win); else Object.assign(S.win, windowFromPreset(S.win.preset)); renderAll(); }
 loadAll();
