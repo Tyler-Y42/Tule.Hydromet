@@ -456,7 +456,7 @@ async function loadNWS() {
   return out;
 }
 const overlap = (x, a, b) => Math.max(0, Math.min(x.b, b) - Math.max(x.a, a));
-function maxIn(series, a, b) { let m = null, at = null; for (const x of series) if (overlap(x, a, b) > 0 && (m == null || x.v > m)) { m = x.v; at = x.a; } return { v: m, at }; }
+function maxIn(series, a, b) { let m = null, at = null; for (const x of series) if (overlap(x, a, b) > 0 && (m == null || x.v > m)) { m = x.v; at = Math.max(x.a, a); } return { v: m, at }; } // at: start of that period, clipped to the window
 function sumIn(series, a, b) { let s = 0, end = null; for (const x of series) { const o = overlap(x, a, b); if (o > 0) { s += x.v * o / (x.b - x.a); end = Math.max(end || 0, Math.min(x.b, b)); } } return { mm: s, end }; }
 const seriesEnd = s => s.length ? s[s.length - 1].b : null;
 
