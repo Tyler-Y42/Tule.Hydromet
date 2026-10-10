@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tule Valley Hydromet</title>
+<meta name="description" content="Painter Spring and Marjum Pass, House Range, Utah: rain forecast, radar and gauge rain history, soil moisture, and mid October climatology.">
+<meta name="theme-color" content="#eef0f2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%BA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #e9edf1;
+    --card: #ffffff;
+    --ink: #161616;
+    --ink2: #4a4a48;
+    --ink3: #6b6a66;
+    --rule: #1f1f1f;
+    --edge: #d4d2ca;
+    --hair: #e4e2db;
+    --radar: #eb6834;
+    --flag: #a35a00;
+    --bad: #b3261e;
+    --good: #2e7d32;
+    --link: #1c5cab;
+  }
+  html { background-color: var(--paper); background-image: linear-gradient(180deg, #e3e9ef 0%, #eef1f4 320px, #eef1f4 100%); background-attachment: fixed; min-height: 100%; }
+  body {
+    margin: 0; color: var(--ink); background-color: transparent;
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 14px; line-height: 1.4;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+             max(20px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    -webkit-text-size-adjust: 100%;
+  }
+  .page { max-width: 1500px; margin: 0 auto; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  /* top bar */
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px; margin-bottom: 12px; background: var(--card);
+    border: 1px solid var(--edge); border-top: 4px solid #0072B2; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 8px 22px rgba(11,29,46,0.07); }
+  .bar .brand { display: flex; flex-direction: column; margin-right: 8px; }
+  .bar .brand small { font-size: 0.72rem; color: var(--ink2); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .bar .status a { color: var(--link); }
+  .bar h1 { margin: 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.015em; margin-right: 6px; }
+  .bar .grow { flex: 1 1 auto; }
+  .seg { display: inline-flex; border: 0.75px solid var(--rule); border-radius: 3px; overflow: hidden; background: var(--card); }
+  .seg button { background: none; border: 0; border-right: 0.75px solid var(--rule); padding: 3px 9px; font: inherit; font-size: 0.84rem; color: var(--ink); cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .btn { background: var(--card); border: 0.75px solid var(--rule); border-radius: 3px; padding: 3px 9px; font: inherit; font-size: 0.84rem; color: var(--ink); cursor: pointer; }
+  .btn.on { background: var(--ink); color: #fff; }
+  input, select { font: inherit; font-size: 0.84rem; color: var(--ink); background: var(--card); border: 0.75px solid #9a988f; border-radius: 3px; padding: 2px 5px; max-width: 100%; }
+  input[type=number] { width: 3.6rem; }
+  .custom { font-size: 0.84rem; display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .status { font-size: 0.74rem; color: var(--ink3); width: 100%; }
+  .status span { margin-right: 10px; white-space: nowrap; }
+  .status .ok::before, .status .warn::before, .status .err::before, .status .loading::before { content: "●"; margin-right: 3px; }
+  .status .ok::before { color: var(--good); } .status .warn::before { color: var(--flag); } .status .err::before { color: var(--bad); } .status .loading::before { color: var(--ink3); }
+  /* tiles */
+  .tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+  .tile { position: relative; background: var(--card); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 6px 16px rgba(11,29,46,0.06); padding: 9px 12px 6px; min-width: 0; border-top: 4px solid var(--acc, var(--ink)); }
+  .tile .k { font-size: 0.68rem; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+  .tile .v { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .s { font-size: 0.74rem; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile.alert { border-color: var(--radar); }
+  .tile.alert .v { color: var(--radar); }
+  @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .alertline { font-size: 0.82rem; color: var(--flag); margin: -2px 0 8px; }
+  .alertline:empty { display: none; }
+  /* dashboard grid */
+  .dash { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 8px; align-items: start; }
+  .col { display: grid; gap: 8px; min-width: 0; }
+  .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+  @media (max-width: 980px) { .dash, .row3 { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--card); border: 1px solid var(--edge); border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 8px 22px rgba(11,29,46,0.07); padding: 12px 14px 14px; min-width: 0; }
+  .ch { padding-bottom: 8px; border-bottom: 1px solid var(--hair); margin-bottom: 4px; }
+  .ch h3 .fl { color: #0072B2; }
+  .inch { color: var(--ink3); font-size: 0.86em; font-weight: 600; }
+  .ch { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+  .ch h3 { margin: 0; font-size: 0.98rem; font-weight: 800; letter-spacing: -0.005em; }
+  .ch .u { font-size: 0.76rem; color: var(--ink2); }
+  .ch .r { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; font-size: 0.78rem; }
+  .info { position: relative; }
+  .info > summary { list-style: none; cursor: pointer; color: var(--ink3); font-size: 0.8rem; display: inline-block; width: 15px; height: 15px; line-height: 14px; text-align: center; border: 0.75px solid var(--ink3); border-radius: 50%; }
+  .info > summary::-webkit-details-marker { display: none; }
+  .info[open] > summary { color: #fff; background: var(--ink); border-color: var(--ink); }
+  .info .pop { font-size: 0.78rem; color: var(--ink2); line-height: 1.5; background: #fff; border: 0.75px solid var(--rule); padding: 8px 10px; margin: 6px 0 4px; }
+  .plab { font-size: 0.86rem; color: var(--ink); margin: 14px 0 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .plab .pt { font-weight: 800; font-size: 0.95rem; }
+  .plab .pl { font-weight: 800; font-size: 1.2rem; line-height: 1; }
+  ul.kb { margin: 3px 0 0; padding-left: 1.15rem; font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+  ul.kb:empty { display: none; }
+  .bandkey { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.78rem; font-weight: 600; color: var(--ink2); margin: 8px 0 0; }
+  .bandkey i { display: inline-block; width: 14px; height: 10px; margin-right: 5px; vertical-align: 0; }
+  ul.kb li { margin: 1px 0; }
+  ul.kb li::marker { color: #0072B2; }
+  ul.kb .flag { color: #D55E00; }
+  .plab .u { color: var(--ink2); }
+  .cbox { position: relative; height: 136px; touch-action: pan-y; }
+  .cbox.hr { height: 168px; } .cbox.cum { height: 168px; } .cbox.q { height: 150px; } .cbox.side { height: 236px; }
+  @media (max-width: 600px) { .cbox { height: 128px; } .cbox.hr, .cbox.cum { height: 156px; } .cbox.q { height: 140px; } }
+  .zoomnote { font-size: 0.74rem; color: var(--ink3); }
+  p.cap { font-size: 0.78rem; color: var(--ink2); line-height: 1.5; margin: 6px 0 0; }
+  p.cap b { color: var(--ink); }
+  p.key { font-size: 0.86rem; font-weight: 600; color: var(--ink); line-height: 1.45; margin: 10px 0 0; padding: 6px 10px; border-left: 3px solid #0072B2; background: #f3f7fb; border-radius: 0 4px 4px 0; }
+  p.key:empty { display: none; }
+  p.key .flag { color: var(--flag); }
+  #map { height: 360px; border: 0.75px solid var(--edge); background: #eee; }
+  @media (max-width: 600px) { #map { height: 300px; } }
+  .leaflet-container { font-family: inherit; }
+  .stlab { background: rgba(255, 255, 255, 0.85) !important; border: 0 !important; box-shadow: none !important; padding: 0 3px !important; font-size: 10.5px !important; color: #111 !important; }
+  .stlab::before { display: none !important; }
+  .radar-ctl { display: flex; gap: 8px; align-items: center; font-size: 0.78rem; margin-top: 6px; }
+  .radar-ctl input[type=range] { flex: 1 1 auto; min-width: 80px; accent-color: var(--radar); }
+  .radar-ctl .lbl { color: var(--ink2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .legend-row { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 0.72rem; color: var(--ink2); margin-top: 5px; }
+  .legend-row i { display: inline-block; width: 9px; height: 9px; margin-right: 4px; vertical-align: -1px; }
+  /* tables */
+  .tscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.78rem; font-variant-numeric: tabular-nums; border-top: 1.25px solid var(--rule); border-bottom: 1.25px solid var(--rule); }
+  thead th { border-bottom: 1px solid var(--rule); font-weight: 800; text-align: right; padding: 4px 6px; white-space: nowrap; vertical-align: bottom; }
+  td { padding: 3px 6px; text-align: right; white-space: nowrap; vertical-align: top; }
+  th.l, td.l { text-align: left; }
+  tr.grp td { font-weight: 700; padding-top: 6px; text-align: left; border-top: 0.75px solid var(--hair); }
+  tbody tr.click { cursor: pointer; }
+  tbody tr.click:hover, tbody tr.click.sel { background: rgba(0, 0, 0, 0.05); }
+  td .sw { display: inline-block; width: 8px; height: 8px; margin-right: 5px; }
+  td .op { color: var(--ink3); font-size: 0.92em; margin-left: 4px; }
+  tr.ctx td { color: var(--ink3); }
+  tr.ctx td a { color: #6f8fb8; }
+  .stlab.ctx { color: #77756f !important; font-size: 9.5px !important; background: rgba(255,255,255,0.6) !important; }
+  .tnote { font-size: 0.72rem; color: var(--ink2); margin: 5px 0 0; line-height: 1.45; }
+  sup.f { color: var(--flag); font-weight: 700; margin-left: 1px; }
+  .muted { color: var(--ink3); } .flag { color: var(--flag); } .bad { color: var(--bad); }
+  /* bottom drawer */
+  .drawer { margin-top: 10px; background: var(--card); border: 0.75px solid var(--edge); padding: 8px 10px; }
+  .drawer > summary { cursor: pointer; font-weight: 700; font-size: 0.86rem; }
+  .drawer details { margin-top: 8px; }
+  .drawer details > summary { cursor: pointer; color: var(--link); font-size: 0.82rem; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 0.82rem; margin-top: 6px; }
+  textarea.readout { width: 100%; min-height: 180px; box-sizing: border-box; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.74rem; line-height: 1.45; color: var(--ink); background: #fff; border: 0.75px solid #9a988f; padding: 8px; margin-top: 6px; }
+  .methods { font-size: 0.8rem; color: var(--ink2); line-height: 1.5; }
+  .methods h3 { color: var(--ink); font-size: 0.84rem; margin: 12px 0 4px; }
+  .methods ul { margin: 4px 0; padding-left: 1.1rem; }
+  pre.tests { white-space: pre-wrap; font-size: 0.74rem; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; margin: 8px 0 0; }
+  .pass { color: var(--good); } .fail { color: var(--bad); }
+  footer { font-size: 0.72rem; color: var(--ink3); margin-top: 10px; line-height: 1.55; }
+  .hidden { display: none !important; }
+  .offline { font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--flag); border-radius: 6px; padding: 6px 10px; margin: 0 0 8px; }
+  .offline:empty { display: none; }
+  .cbox.f { height: 132px; } .cbox.clim { height: 190px; }
+  @media (max-width: 600px) { .cbox.f { height: 124px; } .cbox.clim { height: 176px; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="bar">
+  <div class="brand"><h1>Tule Valley Hydromet</h1></div>
+  <span class="seg" id="presets"><button data-p="72h">72 h</button><button data-p="7d">7 d</button><button data-p="30d">30 d</button><button data-p="90d">90 d</button></span>
+  <button class="btn" id="refresh">Refresh</button>
+  <span class="grow"></span>
+  <span class="zoomnote" id="meta"></span>
+  <div class="status" id="status"></div>
+</div>
+
+<div class="offline" id="offline"></div>
+<div class="tiles" id="tiles"></div>
+<div class="alertline" id="alertline"></div>
+
+<div class="dash">
+  <div class="col">
+    <div class="card">
+      <div class="ch"><h3>Forecast, Painter Spring and Marjum Pass</h3><span class="u" id="f-range"></span></div>
+      <div class="plab"><b class="pl">a</b><span class="pt">Chance of rain and thunder</span><span class="u">%</span></div><ul class="kb" id="kb-fa"></ul><div class="cbox f"><canvas id="f-pop"></canvas></div>
+      <div class="plab"><b class="pl">b</b><span class="pt">Forecast rain, running total</span><span class="u">mm</span></div><ul class="kb" id="kb-fb"></ul><div class="cbox f"><canvas id="f-qpf"></canvas></div>
+      <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
+      <div class="plab"><b class="pl">d</b><span class="pt">Wind and gusts, Painter Spring</span><span class="u">km/h</span></div><ul class="kb" id="kb-fd"></ul><div class="cbox f"><canvas id="f-wind"></canvas></div>
+      <p class="cap" id="cap-f"></p>
+    </div>
+    <div class="card">
+      <div class="ch"><h3>Recent rain, Tule Valley</h3><span class="u" id="ts-range"></span>
+        <span class="r"><button class="btn hidden" id="zoom-reset">Full window</button></span></div>
+      <div class="plab"><b class="pl">a</b><span class="pt" id="h-a-title">Rain from radar</span><span class="u" id="h-a-unit">mm h⁻¹</span></div><ul class="kb" id="kb-ha"></ul><div class="cbox hr"><canvas id="h-hr"></canvas></div>
+      <div class="plab"><b class="pl">b</b><span class="pt">Running total</span><span class="u">mm</span></div><ul class="kb" id="kb-hb"></ul><div class="cbox cum"><canvas id="h-cum"></canvas></div>
+      <div class="plab"><b class="pl">c</b><span class="pt">Soil moisture, Tule Valley SCAN</span><span class="u">% by volume</span></div><ul class="kb" id="kb-hc"></ul><div class="cbox"><canvas id="h-soil"></canvas></div>
+      <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
+      <p class="cap" id="cap-h"></p>
+      <div class="zoomnote">Drag across a chart to zoom; double-click to reset.</div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="ch"><h3>Map and radar</h3><span class="u" id="map-u"></span></div>
+      <div id="map"></div>
+      <div class="radar-ctl"><label><input type="checkbox" id="map-radar" checked> Radar</label><span class="lbl" id="radar-lbl"></span></div>
+      <div class="legend-row"><span><i style="background:#D55E00;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)"></i>Painter Spring</span><span><i style="background:#E69F00;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>Marjum Pass</span><span><i style="background:#0072B2;border-radius:50%"></i>Rain gauge</span></div>
+      <p class="cap" id="cap-map"></p>
+    </div>
+    <div class="card">
+      <div class="ch"><h3>Mid October rain, 1991 to 2025</h3><span class="u">PRISM and the valley gauge</span></div>
+      <ul class="kb" id="kb-clim"></ul>
+      <div class="plab"><b class="pl">a</b><span class="pt">Chance of a wet day</span><span class="u">% of years with 1 mm or more</span></div><div class="cbox clim"><canvas id="c-wet"></canvas></div>
+      <div class="plab"><b class="pl">b</b><span class="pt">Oct 12 to 14 total by year</span><span class="u">mm</span></div><div class="cbox clim"><canvas id="c-years"></canvas></div>
+      <p class="cap" id="cap-clim"></p>
+    </div>
+    <div class="card">
+      <div class="ch"><h3>Stations</h3><span class="u" id="st-asof"></span></div>
+      <div class="tscroll"><table id="t-stations"></table></div>
+      <p class="cap" id="t-stations-note"></p>
+    </div>
+  </div>
+</div>
+
+<details class="drawer">
+  <summary>Methods and sources</summary>
+  <div class="methods">
+    <h3>Forecast</h3>
+    <ul><li>NWS Salt Lake City gridded forecast (2.5 km) for the cells holding Painter Spring (SLC 38,112) and Marjum Pass (SLC 41,114). Chance of rain is per forecast period; the running total adds the forecast amounts (QPF) from now on, which NWS issues about 3 days ahead, so a blank tail means no amount yet, not no rain.</li></ul>
+    <h3>Rain history</h3>
+    <ul>
+      <li>Radar at the two points: NCEP Stage IV hourly (radar corrected with gauges) for windows up to 7 days, and NOAA MRMS daily totals for longer windows, both read from the IEM IEMRE point service. Radar here looks down from far away (Salt Lake and Cedar City), so light rain and low showers are often missed.</li>
+      <li>Gauges: Tule Valley SCAN (NRCS, hourly, from AWDB), Tule Valley RAWS (BLM, hourly cumulative), King Canyon (UDOT, 10 min) and Snake Valley (DRI) for context, from MesoWest. Increments are summed; negative steps count as 0; a jump over 10 mm in 10 min is left out unless another gauge also recorded rain within 30 min. No data is shown as no data, not 0.</li>
+      <li>Soil moisture: SCAN sensors at 2, 4, 8, 20 and 40 in. A jump at 2 in that fades over a day or two is rain that soaked in.</li>
+    </ul>
+    <h3>Climatology</h3>
+    <ul><li>PRISM daily precipitation 1991 to 2025, 20 Sep to 10 Nov, at both points (via IEM, on its 0.125° grid), and the SCAN gauge since 2011. "Wet day" is 1 mm or more. The chance curve is a 7 day centered average.</li></ul>
+    <h3>Offline</h3>
+    <ul><li>Every successful load is saved on this device. With no signal, the page opens from that copy and says when it was saved. The map only shows tiles you have already viewed.</li></ul>
+  </div>
+</details>
+
+<footer id="sources"></footer>
+</div>
+
+<script src="keys.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+'use strict';
+/* ======================================================================
+   Configuration
+   ====================================================================== */
+const TZ = 'America/Denver';
+const TOKEN = (window.WEATHER_KEYS || {}).MESOWEST_TOKEN || '';
+const MIN = 60e3, HOUR = 3600e3, DAY = 86400e3;
+const SUSPECT_MM_PER_10 = 10, CORROB_MS = 30 * MIN, GAP_MS = 30 * MIN, PARTIAL_MS = 25 * MIN, REFETCH_MS = 72 * HOUR;
+
+/* ======================================================================
+   Time helpers (math in UTC ms, calendar and display in Denver)
+   ====================================================================== */
+const _pf = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', weekday: 'short' });
+function tzParts(ms) { const o = {}; for (const p of _pf.formatToParts(new Date(ms))) if (p.type !== 'literal') o[p.type] = p.value; return { y: +o.year, m: +o.month, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd: o.weekday }; }
+function tzOffset(ms) { const f = Math.floor(ms / 1000) * 1000, p = tzParts(f); return Date.UTC(p.y, p.m - 1, p.d, p.h, p.mi, p.s) - f; }
+function denverToUtc(y, m, d, h = 0, mi = 0) { const g = Date.UTC(y, m - 1, d, h, mi); let t = g - tzOffset(g); const o2 = tzOffset(t); if (g - o2 !== t) t = g - o2; return t; }
+const midnightDenver = ms => { const p = tzParts(ms); return denverToUtc(p.y, p.m, p.d); };
+function waterYearStart(ms) { const p = tzParts(ms); return denverToUtc(p.m >= 10 ? p.y : p.y - 1, 10, 1); }
+const hh12 = (h, mi) => `${(h % 12) || 12}:${String(mi).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+const zoneAbbr = ms => (tzOffset(ms) === -6 * HOUR ? 'MDT' : 'MST');
+function fmtDT(ms, { wd = true, tz = false } = {}) { if (ms == null || !isFinite(ms)) return '—'; const p = tzParts(ms); return `${wd ? p.wd + ' ' : ''}${p.m}/${p.d} ${hh12(p.h, p.mi)}${tz ? ' ' + zoneAbbr(ms) : ''}`; }
+function fmtTime(ms) { const p = tzParts(ms); return hh12(p.h, p.mi); }
+function sameDay(a, b) { const x = tzParts(a), y = tzParts(b); return x.y === y.y && x.m === y.m && x.d === y.d; }
+function fmtSpan(a, b) { return `${fmtDT(a)} to ${sameDay(a, b) ? fmtTime(b) : fmtDT(b)}`; }
+function fmtWhen(ms) { return sameDay(ms, Date.now()) ? fmtTime(ms) : fmtDT(ms); }
+function ago(ms) { const d = Date.now() - ms; if (d < 90e3) return 'just now'; if (d < 90 * MIN) return `${Math.round(d / MIN)} min ago`; if (d < 36 * HOUR) return `${(d / HOUR).toFixed(1)} h ago`; return `${(d / DAY).toFixed(1)} d ago`; }
+const durTxt = ms => ms < 90 * MIN ? `${Math.round(ms / MIN)} min` : ms < 48 * HOUR ? `${(ms / HOUR).toFixed(1)} h` : `${(ms / DAY).toFixed(1)} d`;
+const synStamp = ms => new Date(ms).toISOString().replace(/[-:T]/g, '').slice(0, 12);
+const isoMin = ms => new Date(ms).toISOString().slice(0, 16) + 'Z';
+const localDate = ms => { const p = tzParts(ms); return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`; };
+const localInput = ms => { const p = tzParts(ms); return `${localDate(ms)}T${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}`; };
+function parseLocalInput(v) { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v || ''); return m ? denverToUtc(+m[1], +m[2], +m[3], +m[4], +m[5]) : null; }
+
+/* ======================================================================
+   Numbers
+   ====================================================================== */
+const r3 = x => Math.round(x * 1000) / 1000;
+const mmStr = (mm, d = 2) => (mm == null || !isFinite(mm)) ? '—' : mm.toFixed(d);
+const inStr = mm => (mm == null || !isFinite(mm)) ? '—' : (mm / 25.4).toFixed(2);
+const mmIn = (mm, d = 1) => (mm == null || !isFinite(mm)) ? '—' : `${mm.toFixed(d)} mm (${(mm / 25.4).toFixed(2)} in)`;
+const cfs = q => (q == null || !isFinite(q)) ? '—' : (q >= 100 ? q.toFixed(0) : q >= 10 ? q.toFixed(1) : q.toFixed(2));
+const fToC = f => (f - 32) * 5 / 9;
+const ft = n => Math.round(n).toLocaleString('en-US');
+function bisectRight(arr, x) { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] <= x) lo = m + 1; else hi = m; } return lo; }
+
+/* ======================================================================
+   Fetch
+   ====================================================================== */
+async function fetchJSON(url, { tries = 3, timeout = 45000 } = {}) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), timeout);
+    try {
+      const r = await fetch(url, { signal: ac.signal, cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return JSON.parse(await r.text()); // truncated JSON throws and retries
+    } catch (e) {
+      last = e.name === 'AbortError' ? new Error('timed out') : e;
+      if (/HTTP 4\d\d/.test(last.message) && !/429/.test(last.message)) break;
+      await new Promise(r => setTimeout(r, 700 * 2 ** i));
+    } finally { clearTimeout(timer); }
+  }
+  throw last;
+}
+async function pool(items, n, fn) {
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k); } }));
+  return out;
+}
+
+/* ======================================================================
+   Synoptic / MesoWest
+   ====================================================================== */
+const SYN_VARS = 'precip_accum,precip_accum_ten_minute,precip_accum_one_hour,air_temp,relative_humidity,snow_depth,solar_radiation,wind_speed,wind_gust,weather_cond_code';
+const synCache = new Map();
+const synURL = (a, b) => `https://api.synopticdata.com/v2/stations/timeseries?stid=${STATIONS.map(s => s.id).join(',')}&start=${synStamp(a)}&end=${synStamp(b)}&vars=${SYN_VARS}&obtimezone=UTC&units=metric&token=${TOKEN}`;
+async function fetchSynChunk(a, b) {
+  const d = await fetchJSON(synURL(a, b));
+  const code = d && d.SUMMARY && d.SUMMARY.RESPONSE_CODE;
+  if (code === 2) return [];
+  if (code !== 1) throw new Error((d && d.SUMMARY && d.SUMMARY.RESPONSE_MESSAGE) || 'Synoptic error');
+  return d.STATION || [];
+}
+function mergeStations(chunks) {
+  const by = {};
+  for (const list of chunks) for (const S0 of list) {
+    const id = S0.STID, o = S0.OBSERVATIONS || {};
+    const rec = by[id] || (by[id] = { id, meta: S0, rows: new Map() });
+    const pick = {};
+    for (const k of Object.keys(o)) { const m = /^(.*)_set_(\d+)(d?)$/.exec(k); if (!m) continue; const name = m[3] ? m[1] + '_d' : m[1]; if (!pick[name] || +m[2] < pick[name].n) pick[name] = { k, n: +m[2] }; }
+    (o.date_time || []).forEach((ts, i) => {
+      const t = Date.parse(ts), row = rec.rows.get(t) || {};
+      for (const name in pick) { const v = o[pick[name].k][i]; if (v != null) row[name] = v; }
+      rec.rows.set(t, row);
+    });
+  }
+  const out = {};
+  for (const id in by) {
+    const ts = [...by[id].rows.keys()].sort((x, y) => x - y), v = {};
+    ts.forEach((t, i) => { const row = by[id].rows.get(t); for (const k in row) (v[k] || (v[k] = new Array(ts.length).fill(null)))[i] = row[k]; });
+    out[id] = { id, meta: by[id].meta, t: ts, v };
+  }
+  return out;
+}
+async function loadSynoptic(a, b) {
+  if (!TOKEN) throw new Error('no MesoWest token in keys.js');
+  const now = Date.now(), chunks = [];
+  for (let s = Math.floor(a / DAY) * DAY; s < b; s += 14 * DAY) chunks.push([Math.max(a, s), Math.min(b, s + 14 * DAY)]);
+  const lists = await pool(chunks, 3, async ([s, e]) => {
+    const key = `${s}-${e}`;
+    if (e < now - REFETCH_MS && synCache.has(key)) return synCache.get(key);
+    const v = await fetchSynChunk(s, e); synCache.set(key, v); return v;
+  });
+  return mergeStations(lists);
+}
+
+
+/* Precipitation QC (from Alta Hydromet) */
+function processPrecip(st, mode) {
+  const out = { obs: [], incs: [], dropped: 0 };
+  if (!st || !mode) return out;
+  if (mode === 'ten' || mode === 'hour') {
+    const a = st.v[mode === 'ten' ? 'precip_accum_ten_minute' : 'precip_accum_one_hour'], span = mode === 'ten' ? 10 * MIN : HOUR;
+    if (!a) return out;
+    for (let i = 0; i < st.t.length; i++) {
+      const v = a[i]; if (v == null || !isFinite(v)) continue;
+      const t = st.t[i]; out.obs.push(t);
+      let mm = r3(v); const flags = [];
+      if (mm < 0) { flags.push('negative'); mm = 0; }
+      if (mm / (span / (10 * MIN)) > SUSPECT_MM_PER_10) flags.push('suspect');
+      if (mm > 0 || flags.length) out.incs.push({ t0: t - span, t, mm, flags, include: true });
+    }
+  } else {
+    const a = st.v.precip_accum; if (!a) return out;
+    let prev = null;
+    for (let i = 0; i < st.t.length; i++) {
+      const v = a[i]; if (v == null || !isFinite(v)) continue;
+      if (v < 0 || v > 20000) { out.dropped++; continue; }
+      const t = st.t[i]; out.obs.push(t);
+      if (prev) {
+        let d = r3(v - prev.v); const flags = [];
+        if (d < 0) { flags.push('reset'); d = 0; }
+        else if (d > 0) { if (t - prev.t > GAP_MS) flags.push('gap'); if (d / Math.max(1, (t - prev.t) / (10 * MIN)) > SUSPECT_MM_PER_10) flags.push('suspect'); }
+        if (d > 0 || flags.length) out.incs.push({ t0: prev.t, t, mm: d, flags, include: true });
+      }
+      prev = { t, v };
+    }
+  }
+  return out;
+}
+function corroborate(P, ids) {
+  for (const id of Object.keys(P)) for (const inc of P[id].incs) {
+    if (!inc.flags.includes('suspect')) continue;
+    const ok = ids.some(o => o !== id && P[o] && P[o].incs.some(j => j.mm > 0 && !j.flags.includes('suspect') && j.t >= inc.t0 - CORROB_MS && j.t0 <= inc.t + CORROB_MS));
+    inc.include = ok; inc.flags.push(ok ? 'corroborated' : 'excluded');
+  }
+}
+function sumPrecip(p, a, b) {
+  if (!p) return { mm: null, n: 0, last: null, status: 'nodata' };
+  let mm = 0, excluded = 0;
+  for (const inc of p.incs) if (inc.t > a && inc.t <= b) { if (inc.include) mm += inc.mm; else excluded += inc.mm; }
+  const i0 = bisectRight(p.obs, a), i1 = bisectRight(p.obs, b), n = i1 - i0, last = i1 > 0 ? p.obs[i1 - 1] : null;
+  return { mm: r3(mm), excluded: r3(excluded), n, last: n ? last : null, status: n === 0 ? 'nodata' : (last < b - PARTIAL_MS ? 'partial' : 'ok') };
+}
+function flagCounts(p, a, b) {
+  const c = { reset: 0, gap: 0, excluded: 0, corroborated: 0, negative: 0 };
+  if (p) for (const inc of p.incs) if (inc.t > a && inc.t <= b) for (const f of inc.flags) if (f in c) c[f]++;
+  return c;
+}
+function lastTip(p, b) { if (!p) return null; for (let i = p.incs.length - 1; i >= 0; i--) { const x = p.incs[i]; if (x.t <= b && x.include && !x.melt && x.mm > 0) return x; } return null; }
+
+/* Radar palette */
+const PAL_HEX = '00000085718f85728f86738d87758b87768b887789897987897a878a7b858b7d848b7e848c7f828d81808d82808e837e8f847c8f857c90877b918879918979928b77938d759691539894579b975b9d9a60a09d64a3a068a5a36da8a671aaa976adac7ab0af7eb2b283b7b88cbabb90bdbe94bfc199c2c49dc4c7a2c7caa6cacdaaccd0afd2d4b4cfd2b4c9ccb4c6c9b4c3c7b4c0c4b4bdc1b4b9beb4b6bbb4b3b9b4b0b6b4adb3b4aab0b4a4abb4a0a8b49da5b49aa2b497a0b4949db4919ab4949bb59098b48c95b38892b2808cb07c89af7886ae7483ac7080ab6c7daa6779a96376a85f73a75b70a6576da44f67a24b64a14761a0435e9f415b9e4361a24568a6486faa4a76ae4d7db24f84b6518bbb5699c3599fc75ba6cb5eadcf60b4d462bbd865c2dc67c9e06ad0e46fd6e868d6d759d6b352d6a24bd69043d67e3cd66d35d65b11d51811d11710cd1710c81610c4160fbc150fb7140eb3140eaf130eab130da6120da2120d9e110c99110c95100c91100b880f0b840e0a800e0a7c0d0a770d09730c096f0c096b0b08660b08620a095e09327308467d085b88076f9207849d0698a806adb205c1bd05d6c704ead204ffe200ffd800ffd300ffce00ffc900ffc400ffc000ffbb00ffb600ffb100ffac00ffa700ffa200ff9900ff9400ff8f00ff8a00ff8500ff8000ff0000f80000f10000ea0000e30000d50000cd0000c60000bf0000b80000b10000aa0000a300009b00009400008d00007f0000780000710000fffffffff5ffffeaffffdfffffd4ffffc9ffffbeffffb3ffff9dffff92ffff75fffc6bfdf960faf656f7f34bf4f040f1ed36efea2bece720e9e10be3b200ffac00fca400f79b00f49300ef8800ea8300e87900e27200dd6900db05ecf005ebf005eaf005dde005dce005dbe005cdd005ccd004bdc004bcc004bbc004aeb004adb0049ea0049da0049ca0038e90038d90038c90037e80037d80036f70036e70036d70025f60025e60024f50024e50024d50023f40023e40023d40013030012f30012020011f20011e203a67b53a66b53a65b53a64b53a63b53a62b5';
+const PAL = (() => { const m = new Map(), arr = []; for (let i = 0; i < 256; i++) { const c = parseInt(PAL_HEX.substr(i * 6, 6), 16); arr.push([c >> 16, (c >> 8) & 255, c & 255]); if (i && !m.has(c)) m.set(c, i); } return { m, arr }; })();
+const nearIdx = new Map();
+function rgbToIdx(r, g, b) {
+  const c = (r << 16) | (g << 8) | b, hit = PAL.m.get(c); if (hit != null) return hit;
+  if (nearIdx.has(c)) return nearIdx.get(c);
+  let best = 0, bd = Infinity; for (let i = 1; i < 256; i++) { const p = PAL.arr[i], d = (p[0] - r) ** 2 + (p[1] - g) ** 2 + (p[2] - b) ** 2; if (d < bd) { bd = d; best = i; } }
+  nearIdx.set(c, bd < 300 ? best : 0); return nearIdx.get(c);
+}
+const idxToDbz = i => i > 0 ? i * 0.5 - 32.5 : null;
+
+/* ======================================================================
+   Places, stations, trip
+   ====================================================================== */
+const CAMP = { key: 'camp', name: 'Painter Spring', lat: 39.1873, lon: -113.4430, elev: 5408, color: '#D55E00' };
+const MARJUM = { key: 'marjum', name: 'Marjum Pass', lat: 39.2544, lon: -113.3614, elev: 6238, color: '#E69F00' };
+const PTS = [CAMP, MARJUM];
+const NWS_GRID = { camp: 'https://api.weather.gov/gridpoints/SLC/38,112', marjum: 'https://api.weather.gov/gridpoints/SLC/41,114' };
+const TRIP = { a: denverToUtc(2026, 10, 12), b: denverToUtc(2026, 10, 15), label: 'Mon to Wed' };
+const AWDB = 'https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1';
+const SCAN_TRIP = '2163:UT:SCAN', SCAN_TZ = -7 * HOUR; // SCAN hourly stamps are MST (checked against MesoWest TULU1)
+const SCAN = { id: 'TULU1', name: 'Tule Valley SCAN', short: 'Valley SCAN', elev: 4600, lat: 39.2372, lon: -113.4587, net: 'NRCS soil climate (SCAN)', group: 'valley', color: '#0072B2', link: 'https://wcc.sc.egov.usda.gov/nwcc/site?sitenum=2163' };
+const STATIONS = [
+  { id: 'TVWU1', name: 'Tule Valley RAWS', short: 'Valley RAWS', elev: 5081, lat: 39.3502, lon: -113.3849, net: 'BLM fire weather (RAWS)', mode: 'accum', group: 'valley', color: '#009E73' },
+  { id: 'KCWU1', name: 'King Canyon', short: 'King Canyon', elev: 6283, lat: 39.0744, lon: -113.6390, net: 'UDOT road weather', mode: 'ten', group: 'valley', color: '#CC79A7' },
+  { id: 'NSNA', name: 'Snake Valley', short: 'Snake Valley', elev: 5180, lat: 39.0211, lon: -114.0897, net: 'Desert Research Institute', mode: 'accum', group: 'context', color: '#b5b3ab' },
+];
+const ALL_ST = [SCAN, ...STATIONS];
+const mesoLink = id => `https://mesowest.utah.edu/cgi-bin/droman/meso_base_dyn.cgi?stn=${id}`;
+const kmFrom = (p, s) => Math.hypot((s.lat - p.lat) * 111, (s.lon - p.lon) * 86);
+const INK = '#111111', INK2 = '#444444', INK3 = '#6b6b6b', RADAR = '#D55E00';
+const inch = mm => `${(mm / 25.4).toFixed(2)} in`;
+
+/* ======================================================================
+   NWS gridded forecast
+   ====================================================================== */
+function isoDur(s) { const m = /P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/.exec(s || ''); return m ? ((+m[1] || 0) * 24 + (+m[2] || 0)) * HOUR + (+m[3] || 0) * MIN : HOUR; }
+function gridSeries(p, k) { const g = p[k]; if (!g) return []; return g.values.map(x => { const [s, d] = x.validTime.split('/'), a = Date.parse(s); return { a, b: a + isoDur(d), v: x.value }; }).filter(x => x.v != null); }
+async function loadNWS() {
+  const out = {};
+  await Promise.all(PTS.map(async p => {
+    let d;
+    try { d = await fetchJSON(NWS_GRID[p.key], { tries: 3, timeout: 30000 }); }
+    catch (e) { const pt = await fetchJSON(`https://api.weather.gov/points/${p.lat},${p.lon}`); d = await fetchJSON(pt.properties.forecastGridData); }
+    const P = d.properties;
+    out[p.key] = { updated: Date.parse(P.updateTime), pop: gridSeries(P, 'probabilityOfPrecipitation'), qpf: gridSeries(P, 'quantitativePrecipitation'), thunder: gridSeries(P, 'probabilityOfThunder'),
+      temp: gridSeries(P, 'temperature'), wind: gridSeries(P, 'windSpeed'), gust: gridSeries(P, 'windGust'), sky: gridSeries(P, 'skyCover') };
+  }));
+  return out;
+}
+const overlap = (x, a, b) => Math.max(0, Math.min(x.b, b) - Math.max(x.a, a));
+function maxIn(series, a, b) { let m = null, at = null; for (const x of series) if (overlap(x, a, b) > 0 && (m == null || x.v > m)) { m = x.v; at = x.a; } return { v: m, at }; }
+function sumIn(series, a, b) { let s = 0, end = null; for (const x of series) { const o = overlap(x, a, b); if (o > 0) { s += x.v * o / (x.b - x.a); end = Math.max(end || 0, Math.min(x.b, b)); } } return { mm: s, end }; }
+const seriesEnd = s => s.length ? s[s.length - 1].b : null;
+
+/* ======================================================================
+   Radar history at the two points (IEM IEMRE)
+   ====================================================================== */
+const IEM = 'https://mesonet.agron.iastate.edu/iemre';
+const ymd = ms => new Date(ms).toISOString().slice(0, 10);
+async function loadIEM(a, b) {
+  const out = { hourly: b - a <= 8 * DAY + HOUR };
+  await Promise.all(PTS.map(async p => {
+    const rows = [];
+    if (out.hourly) {
+      const days = []; for (let t = Date.UTC(...ymd(a - DAY).split('-').map((x, i) => i === 1 ? x - 1 : +x)); t <= b + DAY; t += DAY) days.push(ymd(t));
+      const got = await pool(days, 4, d => fetchJSON(`${IEM}/hourly/${d}/${p.lat}/${p.lon}/json`, { tries: 2, timeout: 30000 }).catch(() => null));
+      for (const d of got) if (d) for (const r of d.data) { const t = Date.parse(r.valid_utc); if (t > a && t <= b && r.hourly_precip_in != null) rows.push({ t0: t - HOUR, t, mm: r.hourly_precip_in * 25.4 }); }
+    } else {
+      const d = await fetchJSON(`${IEM}/multiday/${ymd(a - DAY)}/${ymd(b)}/${p.lat}/${p.lon}/json`, { timeout: 60000 });
+      for (const r of d.data) { const t0 = denverToUtc(...r.date.split('-').map(Number)), t = t0 + DAY; if (t > a && t0 < b && r.mrms_precip_in != null) rows.push({ t0, t, mm: r.mrms_precip_in * 25.4 }); }
+    }
+    const seen = new Set(); out[p.key] = rows.filter(r => !seen.has(r.t) && seen.add(r.t)).sort((x, y) => x.t - y.t);
+  }));
+  return out;
+}
+const radarTotal = (rows, a, b) => rows ? rows.filter(r => r.t > a && r.t <= b).reduce((s, r) => s + r.mm, 0) : null;
+
+/* ======================================================================
+   SCAN (NRCS AWDB, hourly)
+   ====================================================================== */
+const SMS_DEPTHS = [2, 4, 8, 20, 40];
+async function loadScan(a, b) {
+  const f = ms => new Date(ms + SCAN_TZ).toISOString().slice(0, 13).replace('T', ' ') + ':00';
+  const els = ['PRCP', 'TOBS', ...SMS_DEPTHS.map(d => `SMS:-${d}:1`)].join(',');
+  const d = await fetchJSON(`${AWDB}/data?stationTriplets=${SCAN_TRIP}&elements=${els}&duration=HOURLY&beginDate=${encodeURIComponent(f(a))}&endDate=${encodeURIComponent(f(b))}`, { timeout: 60000 });
+  const out = { prcp: [], tobs: [], sms: {} };
+  for (const e of (d[0] && d[0].data) || []) {
+    const code = e.stationElement.elementCode, depth = e.stationElement.heightDepth;
+    const vals = (e.values || []).filter(x => x.value != null).map(x => ({ t: Date.parse(x.date.replace(' ', 'T') + ':00Z') - SCAN_TZ, v: x.value }));
+    if (code === 'PRCP') out.prcp = vals.map(x => ({ t: x.t, mm: x.v * 25.4 }));
+    else if (code === 'TOBS') out.tobs = vals.map(x => ({ t: x.t, v: (x.v - 32) * 5 / 9 }));
+    else if (code === 'SMS' && vals.length) out.sms[Math.abs(depth)] = vals;
+  }
+  return out;
+}
+function scanPrecip(scan) {
+  const p = { obs: [], incs: [], dropped: 0 }; if (!scan) return p;
+  for (const x of scan.prcp) { p.obs.push(x.t); if (x.mm > 0) p.incs.push({ t0: x.t - HOUR, t: x.t, mm: r3(x.mm), flags: [], include: true }); }
+  return p;
+}
+
+/* ======================================================================
+   Radar now (IEM NEXRAD mosaic tiles decoded in the browser)
+   ====================================================================== */
+function tileXY(lat, lon, z) { const n = 2 ** z, x = (lon + 180) / 360 * n, la = lat * Math.PI / 180; return [x, (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n]; }
+function pixLatLon(tx, ty, px, py, z) { const n = 2 ** z, x = tx + (px + 0.5) / 256, y = ty + (py + 0.5) / 256; return [Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI, x / n * 360 - 180]; }
+const radarStamp = ms => new Date(ms).toISOString().replace(/[-:T]/g, '').slice(0, 12);
+const radarTileURL = (ms, z, x, y) => `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::USCOMP-N0Q-${radarStamp(ms)}/${z}/${x}/${y}.png`;
+function loadImg(url) { return new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => rej(new Error('tile')); im.src = url; }); }
+const RZ = 8, RADIUS_KM = 60;
+async function radarNow() {
+  const ctx = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; return c.getContext('2d', { willReadFrequently: true }); })();
+  const tiles = new Set();
+  for (const dl of [-0.7, 0.7]) for (const dn of [-0.9, 0.9]) { const [x, y] = tileXY(CAMP.lat + dl, CAMP.lon + dn, RZ); tiles.add(`${Math.floor(x)},${Math.floor(y)}`); }
+  let t = Math.floor((Date.now() - 8 * MIN) / (5 * MIN)) * 5 * MIN;
+  for (let k = 0; k < 4; k++, t -= 5 * MIN) {
+    try {
+      const at = {}; let best = null, near = null;
+      for (const key of tiles) {
+        const [tx, ty] = key.split(',').map(Number), im = await loadImg(radarTileURL(t, RZ, tx, ty));
+        ctx.clearRect(0, 0, 256, 256); ctx.drawImage(im, 0, 0); const px = ctx.getImageData(0, 0, 256, 256).data;
+        for (let i = 0; i < 65536; i++) {
+          if (px[i * 4 + 3] < 128) continue;
+          const dbz = idxToDbz(rgbToIdx(px[i * 4], px[i * 4 + 1], px[i * 4 + 2])); if (dbz == null || dbz < 20) continue;
+          const [la, lo] = pixLatLon(tx, ty, i % 256, Math.floor(i / 256), RZ), d = kmFrom(CAMP, { lat: la, lon: lo }); if (d > RADIUS_KM) continue;
+          if (!best || dbz > best.dbz) best = { dbz, d, la, lo };
+          if (dbz >= 30 && (!near || d < near.d)) near = { dbz, d, la, lo };
+          for (const p of PTS) if (kmFrom(p, { lat: la, lon: lo }) <= 1.5 && (at[p.key] == null || dbz > at[p.key])) at[p.key] = dbz;
+        }
+      }
+      return { t, best, near, at };
+    } catch (e) { /* frame not ready yet: try 5 min earlier */ }
+  }
+  throw new Error('no recent radar frame');
+}
+function bearing(p, q) { const ang = (Math.atan2((q.lon - p.lon) * 86, (q.lat - p.lat) * 111) * 180 / Math.PI + 360) % 360; return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(ang / 45) % 8]; }
+
+/* ======================================================================
+   State, offline copy
+   ====================================================================== */
+const S = { win: { preset: '7d', a: 0, b: 0 }, syn: null, P: {}, nws: null, iem: null, scan: null, radar: null, clim: null, status: {}, hoverX: null, drag: null, view: null, savedAt: null, fromCache: false };
+const SNAP_KEY = 'tule-hydromet-snapshot-v1';
+function saveSnap() { try { localStorage.setItem(SNAP_KEY, JSON.stringify({ savedAt: Date.now(), win: S.win, syn: S.syn, nws: S.nws, iem: S.iem, scan: S.scan, radar: S.radar })); } catch (e) { console.warn('could not save offline copy', e); } }
+function loadSnap() { try { const x = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); return x && x.savedAt ? x : null; } catch (e) { return null; } }
+const SRC = { nws: ['NWS forecast', 'https://forecast.weather.gov/MapClick.php?lat=39.1873&lon=-113.443'], iem: ['Radar history', 'https://mesonet.agron.iastate.edu/iemre/'], radar: ['Radar now', 'https://mesonet.agron.iastate.edu/docs/nexrad_mosaic/'], scan: ['SCAN', SCAN.link], syn: ['MesoWest', 'https://mesowest.utah.edu/'] };
+function setStatus(k, cls, msg) { S.status[k] = { cls, msg }; document.getElementById('status').innerHTML = Object.entries(S.status).map(([k2, s]) => `<span class="${s.cls}"><a href="${SRC[k2][1]}" target="_blank" rel="noopener">${SRC[k2][0]}</a> ${s.msg}</span>`).join(' '); }
+function windowFromPreset(p) { const now = Date.now(), spans = { '72h': 3 * DAY, '7d': 7 * DAY, '30d': 30 * DAY, '90d': 90 * DAY }; return { a: now - (spans[p] || 7 * DAY), b: now }; }
+
+/* ======================================================================
+   Charts (from Alta Hydromet)
+   ====================================================================== */
+Chart.defaults.color = INK2;
+Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
+Chart.defaults.font.weight = '600';
+Chart.defaults.font.size = 10.5;
+const AXIS_W = 66, Y2_W = 46, RIGHT_PAD = 112;
+Chart.register({
+  id: 'paper',
+  beforeDatasetsDraw(chart, _a, o) {
+    const { ctx, chartArea: ca, scales: { x } } = chart; if (!x || !o) return;
+    ctx.save(); ctx.beginPath(); ctx.rect(ca.left, ca.top, ca.right - ca.left, ca.bottom - ca.top); ctx.clip();
+    const placed = [];
+    const lab = (txt, x0, color) => { ctx.font = '800 11px Arial, Helvetica'; const w = ctx.measureText(txt).width, lx = Math.min(ca.right - w - 2, Math.max(ca.left + 1, x0 + 1)); let row = 0; while (placed.some(p => p.row === row && lx < p.x1 + 6 && lx + w > p.x0 - 6)) row++; placed.push({ x0: lx, x1: lx + w, row }); ctx.fillStyle = color; ctx.fillText(txt, lx, ca.top + 10 + row * 12); };
+    for (const e of o.events || []) { const x0 = x.getPixelForValue(e.start), x1 = x.getPixelForValue(e.end); ctx.fillStyle = 'rgba(0,0,0,0.085)'; ctx.fillRect(x0, ca.top, Math.max(2, x1 - x0), ca.bottom - ca.top); }
+    for (const c of o.cells || []) { const x0 = x.getPixelForValue(c.start), x1 = x.getPixelForValue(c.end); ctx.fillStyle = 'rgba(213,94,0,0.14)'; ctx.fillRect(x0, ca.top, Math.max(2, x1 - x0), ca.bottom - ca.top); }
+    if (o.labels) { for (const e of o.events || []) if (e.label) lab(e.label, x.getPixelForValue(e.start), INK); for (const c of o.cells || []) lab(c.label, x.getPixelForValue(c.start), RADAR); }
+    for (const h of o.hlines || []) { const y = chart.scales.y.getPixelForValue(h.y); if (y < ca.top || y > ca.bottom) continue; ctx.strokeStyle = h.color || INK3; ctx.setLineDash(h.dash || [3, 3]); ctx.lineWidth = 0.75; ctx.beginPath(); ctx.moveTo(ca.left, y); ctx.lineTo(ca.right, y); ctx.stroke(); ctx.setLineDash([]); if (h.label) { ctx.fillStyle = h.color || INK3; ctx.font = '700 10px Arial, Helvetica'; ctx.fillText(h.label, ca.left + 3, y - 3); } }
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart, _a, o) {
+    const { ctx, chartArea: ca, scales: { x } } = chart; if (!x) return;
+    if (o && o.endLabels) {
+      const items = [];
+      chart.data.datasets.forEach((ds, i) => { if (!chart.isDatasetVisible(i) || !ds.endLabel || !ds.data.length) return; const last = ds.data[ds.data.length - 1]; if (last.y == null) return; items.push({ y: chart.scales.y.getPixelForValue(last.y), text: ds.endLabel, color: ds.labelColor || ds.borderColor }); });
+      items.sort((p, q) => p.y - q.y); for (let i = 1; i < items.length; i++) if (items[i].y - items[i - 1].y < 11) items[i].y = items[i - 1].y + 11;
+      for (let i = items.length - 1, lim = ca.bottom + 6; i >= 0; i--) { if (items[i].y > lim) items[i].y = lim; lim = items[i].y - 11; } // keep the stack inside: push up from the bottom
+      ctx.save(); ctx.font = '700 10.5px Arial, Helvetica'; ctx.textBaseline = 'middle';
+      const lx = (chart.scales.y2 ? chart.scales.y2.right : ca.right) + 4;
+      for (const it of items) { ctx.fillStyle = it.color === '#ffffff' ? INK : it.color; ctx.fillText(it.text, lx, it.y); }
+      ctx.restore();
+    }
+    if (o && o.sync && S.drag && S.drag.x1 != null) { const x0 = x.getPixelForValue(S.drag.v0), x1 = x.getPixelForValue(S.drag.v1); ctx.save(); ctx.fillStyle = 'rgba(28,92,171,0.12)'; ctx.fillRect(Math.min(x0, x1), ca.top, Math.abs(x1 - x0), ca.bottom - ca.top); ctx.restore(); }
+    if (o && o.sync && S.hoverX != null && S.hoverX >= x.min && S.hoverX <= x.max) { const px = x.getPixelForValue(S.hoverX); ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 0.75; ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke(); ctx.restore(); }
+  },
+});
+// Ticks: bold dates at local midnight with a faint day line; clock times in between,
+// as many as fit (pixels per day decides 3 h, 6 h, 12 h, or dates only).
+function tickPlan(span, px) {
+  const pxDay = px / Math.max(span / DAY, 1e-6);
+  if (span > 70 * DAY) return { month: true };
+  if (pxDay >= 330) return { step: 3, every: 3 };
+  if (pxDay >= 170) return { step: 3, every: 6 };
+  if (pxDay >= 95) return { step: 6, every: 12 };
+  if (pxDay >= 40) return { step: 12, every: 0 };
+  return { step: 24, every: 0, dateEvery: Math.ceil(60 / pxDay) };
+}
+function timeTicks(min, max, px) {
+  const span = max - min, plan = tickPlan(span, px), out = [];
+  if (plan.month) { let p = tzParts(min), y = p.y, m = p.m; for (let k = 0; k < 24; k++) { const t = denverToUtc(y, m, 1); if (t > max) break; if (t >= min) out.push({ value: t, major: true }); m++; if (m > 12) { m = 1; y++; } } return out; }
+  const p0 = tzParts(min - DAY);
+  let day = 0;
+  for (let k = 0; k < 1200; k++) {
+    const t = denverToUtc(p0.y, p0.m, p0.d + Math.floor(k * plan.step / 24), (k * plan.step) % 24);
+    if (t > max) break; if (t < min) continue;
+    const h = tzParts(t).h, major = h === 0;
+    let show = major ? (!plan.dateEvery || day++ % plan.dateEvery === 0) : (plan.every > 0 && h % plan.every === 0);
+    out.push({ value: t, major, show });
+  }
+  return out;
+}
+function tickLabel(v, span, tick) {
+  const p = tzParts(v);
+  if (span > 70 * DAY) return new Date(Date.UTC(p.y, p.m - 1, 15)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  if (!tick || !tick.show) return '';
+  if (tick.major) return `${p.wd} ${p.m}/${p.d}`;
+  return `${(p.h % 12) || 12} ${p.h < 12 ? 'AM' : 'PM'}`;
+}
+const axisStyle = () => ({ border: { display: true, color: INK, width: 1.25 }, grid: { display: true, drawOnChartArea: false, drawTicks: true, tickLength: 5, color: INK, lineWidth: 1.25 } });
+const timeGrid = () => ({ display: true, drawOnChartArea: true, drawTicks: true, tickLength: 5, tickColor: INK, lineWidth: c => c.tick && c.tick.major ? 1 : 1.25, color: c => c.tick && c.tick.major ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0)' });
+const charts = {};
+function redrawSynced(except) { for (const c of Object.values(charts)) if (c !== except && c.options.plugins.paper && c.options.plugins.paper.sync) c.draw(); }
+function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, legend = false, paper = {}, type = 'line', tooltipLabel, xRange, decimate = true, rightPad, yTitle = '', y2 = null, reserveY2 = false } = {}) {
+  const [a, b] = xRange || VIEW(), span = b - a;
+  const cfg = {
+    type, data: { datasets },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false, parsing: false, normalized: true,
+      layout: { padding: { right: rightPad != null ? rightPad : endLabels ? RIGHT_PAD : 10, top: 4 } },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      onHover: (e, _el, ch) => { if (!ch.options.plugins.paper.sync) return; const xv = ch.scales.x.getValueForPixel(e.x); S.hoverX = (xv >= ch.scales.x.min && xv <= ch.scales.x.max) ? xv : null; redrawSynced(ch); },
+      plugins: {
+        legend: legend ? { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, padding: 8, color: INK2, font: { size: 10 } } } : { display: false },
+        tooltip: { backgroundColor: 'rgba(255,255,255,0.96)', titleColor: INK, bodyColor: INK, borderColor: INK, borderWidth: 0.5, cornerRadius: 2, padding: 6, boxWidth: 8, boxHeight: 8,
+          callbacks: { title: it => it.length ? fmtDT(it[0].parsed.x, { tz: true }) : '', label: tooltipLabel || (c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}`) } },
+        decimation: { enabled: decimate && type === 'line', algorithm: 'min-max' },
+        paper: { sync: true, events: [], cells: [], ...paper, endLabels },
+      },
+      scales: {
+        x: { type: 'linear', min: a, max: b, offset: false, ...axisStyle(), grid: timeGrid(), title: { display: true, text: `Date and time (${zoneAbbr(b)})`, color: INK, font: { size: 10.5, weight: '700' }, padding: { top: 1 } },
+             afterBuildTicks: s => { s.ticks = timeTicks(s.min, s.max, Math.max(120, s.chart.width - AXIS_W - (y2 || reserveY2 ? Y2_W : 0) - (rightPad != null ? rightPad : endLabels ? RIGHT_PAD : 10))); },
+             ticks: { display: true, color: INK, maxRotation: 0, autoSkip: false, padding: 3, font: c => ({ size: 10.5, weight: c.tick && c.tick.major ? '800' : '600' }), callback: (v, i, ts) => tickLabel(v, span, ts[i]) } },
+        y: { ...axisStyle(), afterFit: s => { s.width = AXIS_W; }, title: { display: !!yTitle, text: yTitle, color: INK, font: { size: 10.5, weight: '700' }, padding: { bottom: 2 } }, ticks: { color: INK, maxTicksLimit: 5, font: { size: 10.5, weight: '600' } }, ...y },
+        ...(y2 || reserveY2 ? { y2: y2 ? {
+          position: 'right', ...axisStyle(), grid: { display: false, drawTicks: true, tickLength: 5, tickColor: INK }, afterFit: s => { s.width = Y2_W; },
+          afterDataLimits: s => { const yy = s.chart.scales.y; s.min = y2.conv(yy.min); s.max = y2.conv(yy.max); },
+          title: { display: true, text: y2.title, color: INK, font: { size: 10.5, weight: '700' } },
+          ticks: { color: INK, maxTicksLimit: 5, font: { size: 10.5, weight: '600' }, callback: v => (+v).toFixed(y2.dec != null ? y2.dec : 2) } }
+          : { position: 'right', display: true, border: { display: false }, grid: { display: false, drawTicks: false }, ticks: { display: false }, afterFit: s => { s.width = Y2_W; } } } : {}),
+      },
+      elements: { point: { radius: 0, hitRadius: 5, hoverRadius: 3 }, line: { borderWidth: 2 } },
+    },
+  };
+  if (charts[id]) charts[id].destroy();
+  const el = document.getElementById(id);
+  charts[id] = new Chart(el, cfg);
+  el.onmouseleave = () => { S.hoverX = null; redrawSynced(null); };
+  if (cfg.options.plugins.paper.sync) {
+    const ch = charts[id];
+    el.onpointerdown = e => { const v = ch.scales.x.getValueForPixel(e.offsetX); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { v0: v, v1: v, px: e.offsetX, x1: null }; };
+    el.onpointermove = e => { if (!S.drag) return; if (Math.abs(e.offsetX - S.drag.px) > 6) { S.drag.x1 = e.offsetX; S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(e.offsetX))); redrawSynced(null); } };
+    el.onpointerup = () => { const d = S.drag; S.drag = null; if (d && d.x1 != null && Math.abs(d.v1 - d.v0) > 20 * MIN) setView([Math.min(d.v0, d.v1), Math.max(d.v0, d.v1)]); else redrawSynced(null); };
+    el.ondblclick = () => setView(null);
+  }
+  return charts[id];
+}
+
+/* ======================================================================
+   Rendering
+   ====================================================================== */
+const VIEW = () => S.view || [S.win.a, S.win.b];
+function setView(v) { S.view = v; document.getElementById('zoom-reset').classList.toggle('hidden', !v); safe(renderHistory, 'history'); }
+const put = (id, items) => { const el = document.getElementById(id); if (el) el.innerHTML = items.filter(Boolean).map(t => `<li>${t}</li>`).join(''); };
+const tripBand = () => ({ events: [{ start: TRIP.a, end: TRIP.b, label: 'Your trip' }], labels: true });
+const stepPts = (series, f = v => v) => { const out = []; for (const x of series) { out.push({ x: x.a, y: f(x.v) }); out.push({ x: x.b - 1, y: f(x.v) }); } return out; };
+
+function tripStats(key) {
+  const n = S.nws && S.nws[key]; if (!n) return null;
+  const q = sumIn(n.qpf, TRIP.a, TRIP.b), qEnd = seriesEnd(n.qpf);
+  return { pop: maxIn(n.pop, TRIP.a, TRIP.b), thunder: maxIn(n.thunder, TRIP.a, TRIP.b), qpf: q.mm, qpfFull: qEnd != null && qEnd >= TRIP.b, qEnd, popEnd: seriesEnd(n.pop) };
+}
+function renderTiles() {
+  const tiles = [], c = tripStats('camp'), m = tripStats('marjum'), now = Date.now();
+  tiles.push(['Rain chance, trip', c && c.pop.v != null ? `${c.pop.v}%` : '—', c && c.pop.v != null ? `highest, ${fmtDT(c.pop.at, { wd: true }).replace(/ \d+:\d+ [AP]M$/, '')}${m && m.pop.v != null ? `; Marjum ${m.pop.v}%` : ''}` : 'forecast not loaded', c && c.pop.v >= 40]);
+  tiles.push(['Forecast rain, trip', c ? (c.qpfFull ? mmIn(c.qpf) : c.qpf > 0 ? `≥ ${c.qpf.toFixed(1)} mm` : 'not issued yet') : '—', c ? (c.qpfFull ? `Marjum ${m ? m.qpf.toFixed(1) : '—'} mm` : `amounts run to ${fmtDT(c.qpfEnd)}`) : '', c && c.qpf >= 5]);
+  tiles.push(['Thunder chance, trip', c && c.thunder.v != null ? `${c.thunder.v}%` : '—', c && c.thunder.v ? `highest, ${fmtDT(c.thunder.at).replace(/ \d+:\d+ [AP]M$/, '')}` : 'none forecast', c && c.thunder.v >= 20]);
+  const r7 = S.iem ? radarTotal(S.iem.camp, now - 7 * DAY, now) : null;
+  tiles.push(['Rain, last 7 days', S.iem && S.iem.hourly && r7 != null ? `${r7.toFixed(1)} mm` : '—', S.iem && S.iem.hourly ? `radar at camp; valley SCAN ${mmStr(sumPrecip(S.P.TULU1, now - 7 * DAY, now).mm, 1)} mm` : 'pick 72 h or 7 d']);
+  const rn = S.radar;
+  tiles.push(['Radar now, 60 km', rn ? (rn.near ? `${rn.near.d.toFixed(0)} km ${bearing(CAMP, { lat: rn.near.la, lon: rn.near.lo })}` : rn.best ? 'Light echo' : 'Clear') : '—', rn ? (rn.near ? `nearest shower, ${rn.near.dbz.toFixed(0)} dBZ; ${fmtTime(rn.t)}` : rn.best ? `up to ${rn.best.dbz.toFixed(0)} dBZ; ${fmtTime(rn.t)}` : `nothing within 60 km; ${fmtTime(rn.t)}`) : '', rn && rn.near && rn.near.d < 25]);
+  const s2 = S.scan && S.scan.sms[2], last = s2 && s2[s2.length - 1], wk = s2 && s2.find(x => x.t >= now - 7 * DAY);
+  tiles.push(['Soil, top 2 in', last ? `${last.v.toFixed(1)}%` : '—', last ? `${wk ? `${last.v - wk.v >= 0 ? '+' : ''}${(last.v - wk.v).toFixed(1)} over 7 days` : ''}, ${fmtWhen(last.t)}` : '']);
+  const ACC = ['#0072B2', '#0072B2', '#D55E00', '#009E73', '#D55E00', '#8a6d3b'];
+  document.getElementById('tiles').innerHTML = tiles.map(([k, v, sub, al], i) => `<div class="tile${al ? ' alert' : ''}" style="--acc:${ACC[i]}"><div class="k">${k}</div><div class="v">${v}</div><div class="s" title="${sub}">${sub}</div></div>`).join('');
+  const nm = S.nws && S.nws.marjum, preQ = nm ? sumIn(nm.qpf, TRIP.a - 2 * DAY, TRIP.a).mm : 0, preP = nm ? maxIn(nm.pop, TRIP.a - 2 * DAY, TRIP.a).v : null;
+  const mj = m && (m.pop.v >= 30 || m.qpf >= 2.5 || preQ >= 2.5);
+  document.getElementById('alertline').innerHTML = mj ? `Marjum Pass: ${preQ >= 2.5 ? `${preQ.toFixed(0)} mm forecast in the 2 days before you drive in (up to ${preP}%)` : ''}${preQ >= 2.5 && m.pop.v >= 30 ? '; ' : ''}${m.pop.v >= 30 ? `${m.pop.v}% chance during the trip` : ''}. The canyon road crosses washes that can run after storms.` : '';
+}
+
+function renderForecast() {
+  const n = S.nws; if (!n) return;
+  const now = Date.now(), end = Math.max(...PTS.map(p => seriesEnd(n[p.key] ? n[p.key].pop : []) || now + DAY)), xr = [now - 2 * HOUR, end];
+  const band = tripBand(), cut = s => s.filter(x => x.b > xr[0] && x.a < xr[1]);
+  const line = (p, s, label, extra = {}) => ({ label: `${p.name}${label}`, endLabel: p === CAMP ? 'Painter Spr.' : 'Marjum', data: stepPts(cut(s)), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3], ...extra });
+  const pop = [line(CAMP, n.camp.pop, ', rain'), line(MARJUM, n.marjum.pop, ', rain')];
+  if (n.camp.thunder.some(x => x.v > 0)) pop.push({ label: 'Painter Spring, thunder', endLabel: 'Thunder', data: stepPts(cut(n.camp.thunder)), borderColor: '#555', backgroundColor: '#555', labelColor: '#555', borderWidth: 1.2, borderDash: [1, 2.5] });
+  timeChart('f-pop', pop, { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Chance, %', paper: { ...band, sync: false }, y: { min: 0, max: 100, ticks: { stepSize: 25, color: INK } }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y}%` });
+  const run = s => { const out = [{ x: xr[0], y: 0 }]; let c = 0; for (const x of s) { if (x.b <= now) continue; const f = Math.min(1, (x.b - Math.max(x.a, now)) / (x.b - x.a)); c += x.v * f; out.push({ x: x.b, y: c }); } return out; };
+  timeChart('f-qpf', PTS.map(p => ({ label: p.name, endLabel: `${p === CAMP ? 'Painter Spr.' : 'Marjum'} ${run(n[p.key].qpf).pop().y.toFixed(1)}`, data: run(n[p.key].qpf), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, stepped: true, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3] })),
+    { xRange: xr, endLabels: true, decimate: false, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, paper: { ...band, sync: false }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
+  timeChart('f-temp', PTS.map(p => line(p, n[p.key].temp, '')).map(d => ({ ...d, data: cut(n[d.label === CAMP.name ? 'camp' : 'marjum'].temp).map(x => ({ x: x.a + (x.b - x.a) / 2, y: x.v })) })),
+    { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Air temp, °C', paper: { ...band, sync: false, hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °C (${(c.parsed.y * 9 / 5 + 32).toFixed(0)} °F)` });
+  timeChart('f-wind', [{ label: 'Gust', endLabel: 'Gust', data: stepPts(cut(n.camp.gust)), borderColor: '#9a988f', backgroundColor: '#9a988f', labelColor: INK3, borderWidth: 1.2 }, { label: 'Wind', endLabel: 'Wind', data: stepPts(cut(n.camp.wind)), borderColor: INK, backgroundColor: INK, labelColor: INK, borderWidth: 2 }],
+    { xRange: xr, endLabels: true, decimate: false, yTitle: 'km/h', y2: { title: 'mph', conv: v => v / 1.609, dec: 0 }, paper: { ...band, sync: false }, y: { beginAtZero: true }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} km/h (${(c.parsed.y / 1.609).toFixed(0)} mph)` });
+  const c = tripStats('camp'), m = tripStats('marjum'), A = [], B = [], D = [];
+  if (c && c.popEnd != null && c.popEnd < TRIP.b) A.push(`<span class="flag">The forecast ends ${fmtDT(c.popEnd)}, before the trip does</span>`);
+  const pre = [TRIP.a - 2 * DAY, TRIP.a], pc = maxIn(n.camp.pop, ...pre), pm = maxIn(n.marjum.pop, ...pre), qm = sumIn(n.marjum.qpf, ...pre).mm;
+  if (pm.v != null && pm.v >= 30) A.push(`<span class="flag">Before you drive in (Sat and Sun): up to ${pm.v}% on Marjum Pass${qm >= 0.5 ? `, ${qm.toFixed(1)} mm forecast` : ''}</span>`);
+  if (c && c.pop.v != null) A.push(`During the trip: up to ${c.pop.v}% at Painter Spring, ${m && m.pop.v != null ? m.pop.v : '—'}% on Marjum Pass${c.thunder.v ? `; thunder up to ${c.thunder.v}%` : ''}`);
+  if (c && !c.qpfFull) B.push(`Amounts are issued about 3 days out; they run to ${fmtDT(c.qpfEnd)}`);
+  const gmax = maxIn(n.camp.gust, TRIP.a, TRIP.b); if (gmax.v >= 50) D.push(`<span class="flag">Gusts to ${gmax.v.toFixed(0)} km/h (${(gmax.v / 1.609).toFixed(0)} mph) during the trip, ${fmtDT(gmax.at)}</span>`);
+  put('kb-fa', A); put('kb-fb', B); put('kb-fc', []); put('kb-fd', D);
+  document.getElementById('f-range').textContent = `issued ${fmtDT(n.camp.updated, { tz: true })}`;
+  document.getElementById('cap-f').innerHTML = `Solid is Painter Spring, dashed Marjum Pass; gray band is your trip. <b>a</b> Chance is for each forecast period, so a long flat step is one broad period, not steady rain. <b>b</b> NWS amounts (QPF) added up from now. <b>d</b> 1 km/h = 0.62 mph.`;
+}
+
+function renderHistory() {
+  const [va, vb] = VIEW(), a = S.win.a, b = S.win.b, hourly = S.iem && S.iem.hourly;
+  document.getElementById('h-a-title').textContent = hourly ? 'Rain from radar, hourly' : 'Rain from radar, daily';
+  document.getElementById('h-a-unit').textContent = hourly ? 'mm h⁻¹' : 'mm d⁻¹';
+  const w = document.getElementById('h-hr').parentElement.clientWidth - 66 - 20, step = hourly ? HOUR : DAY, barW = Math.max(1, Math.min(14, w / Math.max(1, (vb - va) / step) * 0.8));
+  const ds = [];
+  if (S.iem) {
+    ds.push({ type: 'bar', label: 'Painter Spring', data: S.iem.camp.filter(r => r.mm > 0).map(r => ({ x: r.t0 + (r.t - r.t0) / 2, y: r.mm })), backgroundColor: CAMP.color, barThickness: barW, grouped: false, order: 2 });
+    ds.push({ type: 'line', label: 'Marjum Pass', data: S.iem.marjum.map(r => ({ x: r.t0 + (r.t - r.t0) / 2, y: r.mm })), borderColor: MARJUM.color, backgroundColor: MARJUM.color, borderWidth: 1.6, stepped: 'middle', order: 1 });
+  }
+  timeChart('h-hr', ds, { type: 'bar', legend: true, xRange: [va, vb], rightPad: RIGHT_PAD, yTitle: hourly ? 'mm per hour' : 'mm per day', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: hourly ? 0.5 : 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} mm (${inch(c.parsed.y)})` });
+  const cum = [];
+  const cumLine = (label, endName, incs, color, opts = {}) => { const pts = [{ x: a, y: 0 }]; let c = 0; for (const x of incs) if (x.t > a && x.t <= b && x.mm > 0) { c = r3(c + x.mm); pts.push({ x: x.t, y: c }); } pts.push({ x: Math.min(b, Date.now()), y: c }); return { label, endLabel: `${endName} ${mmStr(c, 1)}`, data: pts, borderColor: color, backgroundColor: color, labelColor: color, stepped: true, ...opts }; };
+  if (S.iem) for (const p of PTS) cum.push(cumLine(`${p.name}, radar`, p === CAMP ? 'Painter Spr.' : 'Marjum', S.iem[p.key], p.color, { borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: [4, 3] }));
+  for (const s of ALL_ST) { const p = S.P[s.id]; if (!p || !p.obs.length) continue; cum.push(cumLine(`${s.name} (${s.id}), ${ft(s.elev)} ft, ${kmFrom(CAMP, s).toFixed(0)} km`, s.short, p.incs.filter(x => x.include), s.color, { borderWidth: s.group === 'valley' ? 2.2 : 1.1, labelColor: s.group === 'valley' ? s.color : INK3 })); }
+  timeChart('h-cum', cum, { endLabels: true, decimate: false, xRange: [va, vb], yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
+  const soil = [], SC = { 2: '#0072B2', 4: '#56B4E9', 8: '#009E73', 20: '#8a6d3b', 40: '#9a988f' };
+  if (S.scan) for (const d of SMS_DEPTHS) { const v = S.scan.sms[d]; if (v && v.length) soil.push({ label: `${d} in deep`, endLabel: `${d} in`, data: v.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SC[d], backgroundColor: SC[d], labelColor: SC[d], borderWidth: d === 2 ? 2.2 : 1.4 }); }
+  timeChart('h-soil', soil, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Water, %', tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` });
+  const tds = [];
+  if (S.scan && S.scan.tobs.length) tds.push({ label: 'Tule Valley SCAN, 4,600 ft', endLabel: `Valley ${ft(SCAN.elev)}`, data: S.scan.tobs.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SCAN.color, backgroundColor: SCAN.color, labelColor: SCAN.color, borderWidth: 2.2 });
+  for (const s of STATIONS.filter(x => x.group === 'valley')) { const st = S.syn && S.syn[s.id]; if (!st || !st.v.air_temp) continue; const pts = []; st.t.forEach((t, i) => { const v = st.v.air_temp[i]; if (v != null && t >= a && t <= b) pts.push({ x: t, y: v }); }); if (pts.length) tds.push({ label: `${s.name}, ${ft(s.elev)} ft`, endLabel: `${s.short.replace('Valley ', '')} ${ft(s.elev)}`, data: pts, borderColor: s.color, backgroundColor: s.color, labelColor: s.color, borderWidth: 1.4 }); }
+  timeChart('h-temp', tds, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Air temp, °C', paper: { hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} °C` });
+  document.getElementById('ts-range').textContent = `${fmtDT(va)} to ${fmtDT(vb, { tz: true })}${S.view ? ' (zoomed)' : ''}`;
+  const A = [], C = [];
+  if (S.iem) { const rc = radarTotal(S.iem.camp, va, vb), rm = radarTotal(S.iem.marjum, va, vb); if (rc != null) A.push(rc < 0.25 && rm < 0.25 ? 'No measurable rain on radar at either point' : `Radar: ${mmIn(rc)} at Painter Spring, ${mmIn(rm)} on Marjum Pass`); }
+  const s2 = S.scan && S.scan.sms[2];
+  if (s2 && s2.length > 2) { const inV = s2.filter(x => x.t >= va && x.t <= vb); let jump = null; for (let i = 3; i < inV.length; i++) { const d = inV[i].v - inV[i - 3].v; if (d >= 3 && (!jump || d > jump.d)) jump = { d, t: inV[i].t }; } if (jump) C.push(`Rain soaked in: 2 in moisture rose ${jump.d.toFixed(1)} points by ${fmtDT(jump.t)}`); }
+  put('kb-ha', A); put('kb-hb', []); put('kb-hc', C); put('kb-hd', []);
+  document.getElementById('cap-h').innerHTML = `<b>a</b> ${hourly ? 'NCEP Stage IV, radar corrected with gauges' : 'NOAA MRMS daily totals'}, at each point; distant radars miss light and shallow showers out here. <b>b</b> Dashed lines are the radar estimates; solid are gauges, gray ones outside the valley. Gauges catch only what falls on them, so a passing cell can soak one and miss the next. <b>c</b> A sharp rise at 2 in that fades over a day or two is rain that soaked in.`;
+}
+
+function renderClimate() {
+  const C = S.clim; if (!C) return;
+  const years = Object.keys(C.prism.camp).sort(), days = [];
+  for (let t = Date.UTC(2026, 8, 25); t <= Date.UTC(2026, 10, 5); t += DAY) days.push(new Date(t).toISOString().slice(5, 10));
+  const frac = key => days.map(d => years.filter(y => (C.prism[key][y][d] || 0) >= 1).length / years.length * 100);
+  const smooth = arr => arr.map((_, i) => { const w = arr.slice(Math.max(0, i - 3), i + 4); return w.reduce((s, v) => s + v, 0) / w.length; });
+  const fc = smooth(frac('camp')), fm = smooth(frac('marjum')), lab = days.map(d => `${+d.slice(0, 2)}/${+d.slice(3)}`);
+  const i0 = days.indexOf('10-12'), i1 = days.indexOf('10-14');
+  const ax = axisStyle(), tick = { color: INK, font: { size: 10.5, weight: '600' } };
+  const band = { id: 'tripband', beforeDatasetsDraw(ch) { const { ctx, chartArea: ca, scales: { x } } = ch; const x0 = x.getPixelForValue(i0) - 4, x1 = x.getPixelForValue(i1) + 4; ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.085)'; ctx.fillRect(x0, ca.top, x1 - x0, ca.bottom - ca.top); ctx.fillStyle = INK; ctx.font = '800 11px Arial'; ctx.fillText('Your trip', x0 + 2, ca.top + 10); ctx.restore(); } };
+  if (charts['c-wet']) charts['c-wet'].destroy();
+  charts['c-wet'] = new Chart(document.getElementById('c-wet'), { type: 'line', data: { labels: lab, datasets: [{ label: 'Painter Spring', data: fc, borderColor: CAMP.color, backgroundColor: CAMP.color, borderWidth: 2.5, pointRadius: 0 }, { label: 'Marjum Pass', data: fm, borderColor: MARJUM.color, backgroundColor: MARJUM.color, borderWidth: 1.6, borderDash: [4, 3], pointRadius: 0 }] },
+    options: { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, color: INK2, font: { size: 10 } } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)}% of years` } } },
+      scales: { x: { ...ax, title: { display: true, text: 'Date', color: INK, font: { size: 10.5, weight: '700' } }, ticks: { ...tick, autoSkip: false, maxRotation: 0, callback: (v, i) => /^(\d+)\/(1|8|15|22|29)$/.test(lab[i]) || lab[i] === '10/12' ? lab[i] : '' } }, y: { ...ax, min: 0, suggestedMax: 30, title: { display: true, text: 'Years wet, %', color: INK, font: { size: 10.5, weight: '700' } }, ticks: tick } } }, plugins: [band] });
+  const tripTot = (key, y) => ['10-12', '10-13', '10-14'].reduce((s, d) => s + (C.prism[key][y][d] || 0), 0);
+  const tc = years.map(y => tripTot('camp', y)), scanYears = Object.keys(C.scan || {});
+  const scanT = years.map(y => C.scan && C.scan[y] ? ['10-12', '10-13', '10-14'].reduce((s, d) => s + (C.scan[y][d] || 0), 0) : null);
+  if (charts['c-years']) charts['c-years'].destroy();
+  charts['c-years'] = new Chart(document.getElementById('c-years'), { data: { labels: years, datasets: [{ type: 'bar', label: 'Painter Spring (PRISM)', data: tc, backgroundColor: CAMP.color, barPercentage: 0.8, categoryPercentage: 0.9, order: 2 }, { type: 'line', label: 'Valley SCAN gauge', data: scanT, showLine: false, order: 1, pointStyle: 'circle', pointRadius: 3.5, pointBackgroundColor: '#fff', pointBorderColor: SCAN.color, pointBorderWidth: 1.5 }] },
+    options: { animation: false, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, color: INK2, font: { size: 10 } } }, tooltip: { callbacks: { label: c => c.parsed.y == null ? '' : `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm` } } },
+      scales: { x: { ...ax, title: { display: true, text: 'Year', color: INK, font: { size: 10.5, weight: '700' } }, ticks: { ...tick, autoSkip: true, maxRotation: 0, maxTicksLimit: 8 } }, y: { ...ax, beginAtZero: true, title: { display: true, text: 'mm', color: INK, font: { size: 10.5, weight: '700' } }, ticks: tick } } } });
+  const wet = tc.filter(v => v >= 1).length, mj = years.filter(y => tripTot('marjum', y) >= 1).length, sorted = [...tc].sort((x, y) => x - y), wettest = years[tc.indexOf(Math.max(...tc))];
+  const octMean = key => years.reduce((s, y) => s + Object.entries(C.prism[key][y]).filter(([d]) => d.startsWith('10-')).reduce((a2, [, v]) => a2 + (v || 0), 0), 0) / years.length;
+  const scanOct = scanYears.length ? scanYears.reduce((s, y) => s + Object.entries(C.scan[y]).filter(([d]) => d.startsWith('10-')).reduce((a2, [, v]) => a2 + (v || 0), 0), 0) / scanYears.length : null;
+  put('kb-clim', [`Rain of 1 mm or more fell sometime Oct 12 to 14 in ${wet} of ${years.length} years at Painter Spring (${Math.round(wet / years.length * 100)}%), ${mj} on Marjum Pass`,
+    `When it did, the median was ${(sorted.filter(v => v >= 1)[Math.floor(sorted.filter(v => v >= 1).length / 2)] || 0).toFixed(1)} mm; the wettest was ${Math.max(...tc).toFixed(1)} mm in ${wettest}`,
+    `October averages ${octMean('camp').toFixed(0)} mm at Painter Spring and ${octMean('marjum').toFixed(0)} mm on Marjum Pass${scanOct != null ? `; the valley floor gauge, ${scanOct.toFixed(0)} mm` : ''}`]);
+  document.getElementById('cap-clim').innerHTML = `PRISM is a gridded estimate built from gauges and terrain, read on a 0.125° grid, so it smooths single storms. The valley SCAN gauge (since 2011) sits 6 km north on the valley floor, 800 ft lower.`;
+}
+
+let map = null, radarLayer = null, layer = null;
+function renderMap() {
+  if (!window.L) return;
+  if (!map) {
+    map = L.map('map', { scrollWheelZoom: false, zoomSnap: 0.25 }).fitBounds([[39.00, -113.75], [39.40, -113.05]], { padding: [4, 4] });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'Esri World Topo' }).addTo(map);
+    layer = L.layerGroup().addTo(map);
+  }
+  layer.clearLayers();
+  const lab = (m, txt, dir = 'right') => m.bindTooltip(txt, { permanent: true, direction: dir, className: 'stlab', offset: dir === 'left' ? [-7, 0] : [7, 0] });
+  const star = L.divIcon({ className: '', html: `<svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 1l3.1 7.3 7.9.6-6 5.2 1.8 7.7L12 17.8 5.2 21.8 7 14.1 1 8.9l7.9-.6z" fill="${CAMP.color}" stroke="#111" stroke-width="1"/></svg>`, iconSize: [18, 18], iconAnchor: [9, 9] });
+  const tri = L.divIcon({ className: '', html: `<svg width="14" height="14" viewBox="0 0 12 12"><path d="M6 1 L11 11 L1 11 Z" fill="${MARJUM.color}" stroke="#111" stroke-width="0.8"/></svg>`, iconSize: [14, 14], iconAnchor: [7, 8] });
+  lab(L.marker([CAMP.lat, CAMP.lon], { icon: star }).bindPopup(`<b>Painter Spring</b><br>${ft(CAMP.elev)} ft · your camp`), 'Painter Spring').addTo(layer);
+  lab(L.marker([MARJUM.lat, MARJUM.lon], { icon: tri }).bindPopup(`<b>Marjum Pass</b><br>${ft(MARJUM.elev)} ft · the drive in`), 'Marjum Pass').addTo(layer);
+  for (const s of ALL_ST) {
+    const w = sumPrecip(S.P[s.id], S.win.a, S.win.b);
+    lab(L.circleMarker([s.lat, s.lon], { radius: s.group === 'valley' ? 6 : 4, color: '#111', weight: 1, fillColor: s.color, fillOpacity: 1 }).bindPopup(`<b>${s.name}</b><br>${ft(s.elev)} ft · ${s.net} · ${s.id}<br>${kmFrom(CAMP, s).toFixed(0)} km from camp<br>Window: ${w.status === 'nodata' ? 'no data' : mmStr(w.mm, 1) + ' mm'}<br><a href="${s.link || mesoLink(s.id)}" target="_blank" rel="noopener">Source page</a>`), s.short, s.id === 'KCWU1' ? 'left' : 'right').addTo(layer);
+  }
+  if (radarLayer) { map.removeLayer(radarLayer); radarLayer = null; }
+  const lbl = document.getElementById('radar-lbl');
+  if (S.radar && document.getElementById('map-radar').checked) {
+    radarLayer = L.tileLayer(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::USCOMP-N0Q-${radarStamp(S.radar.t)}/{z}/{x}/{y}.png`, { opacity: 0.62, maxNativeZoom: 12, maxZoom: 16, attribution: 'NEXRAD: IEM' }).addTo(map);
+    lbl.textContent = `NEXRAD ${fmtDT(S.radar.t, { tz: true })}`;
+  } else lbl.textContent = S.radar ? '' : 'radar not loaded';
+  document.getElementById('map-u').textContent = `${kmFrom(CAMP, MARJUM).toFixed(0)} km from Marjum Pass to camp`;
+  document.getElementById('cap-map').innerHTML = `Tap any station for its window total and source. The radar layer is the latest national mosaic; the "Radar now" tile searches 60 km around camp.`;
+}
+
+function renderTable() {
+  const tb = document.getElementById('t-stations'), T = Math.min(S.win.b, Date.now());
+  const cell = r => r.status === 'nodata' ? '<span class="muted">no data</span>' : `${mmStr(r.mm, 1)}<span class="inch"> ${inStr(r.mm)}</span>${r.status === 'partial' ? '<sup class="f">p</sup>' : ''}`;
+  const rows = ALL_ST.map(s => {
+    const p = S.P[s.id], w = sumPrecip(p, S.win.a, S.win.b), r24 = sumPrecip(p, T - DAY, T), last = p && p.obs.length ? p.obs[p.obs.length - 1] : null;
+    return `<tr class="${s.group === 'valley' ? '' : 'ctx'}"><td class="l"><span class="sw" style="background:${s.color}"></span>${s.name} <span class="op">${s.net} · <a href="${s.link || mesoLink(s.id)}" target="_blank" rel="noopener">${s.id}</a></span></td><td>${ft(s.elev)}</td><td>${kmFrom(CAMP, s).toFixed(0)} ${bearing(CAMP, s)}</td><td>${cell(w)}</td><td>${cell(r24)}</td><td class="${last && Date.now() - last > 3 * HOUR ? 'flag' : ''}">${last ? fmtWhen(last) : '<span class="muted">none</span>'}</td></tr>`;
+  });
+  const rad = PTS.map(pt => { const v = S.iem ? radarTotal(S.iem[pt.key], S.win.a, S.win.b) : null, v24 = S.iem && S.iem.hourly ? radarTotal(S.iem[pt.key], T - DAY, T) : null, lastR = S.iem && S.iem[pt.key].length ? S.iem[pt.key][S.iem[pt.key].length - 1].t : null;
+    return `<tr><td class="l"><span class="sw" style="background:${pt.color}"></span>${pt.name}, radar <span class="op">${S.iem && S.iem.hourly ? 'Stage IV' : 'MRMS'}</span></td><td>${ft(pt.elev)}</td><td>${pt === CAMP ? 'camp' : `${kmFrom(CAMP, pt).toFixed(0)} ${bearing(CAMP, pt)}`}</td><td>${v == null ? '—' : `${v.toFixed(1)}<span class="inch"> ${inStr(v)}</span>`}</td><td>${v24 == null ? '—' : v24.toFixed(1)}</td><td>${lastR ? fmtWhen(lastR) : '—'}</td></tr>`; });
+  tb.innerHTML = `<thead><tr><th class="l">Source</th><th>Elev<br>ft</th><th>From camp<br>km</th><th>Window<br>mm <span class="inch">in</span></th><th>Last 24 h<br>mm</th><th>Last<br>report</th></tr></thead><tbody><tr class="grp"><td colspan="6">Radar at your points</td></tr>${rad.join('')}<tr class="grp"><td colspan="6">Gauges</td></tr>${rows.join('')}</tbody>`;
+  document.getElementById('st-asof').textContent = `as of ${fmtDT(T, { tz: true })}`;
+  document.getElementById('t-stations-note').innerHTML = `<sup class="f">p</sup> Partial: the last report is more than 25 min old. Gauge totals are ±0.25 mm. Radar updates lag a few hours.`;
+}
+
+/* ======================================================================
+   Orchestration
+   ====================================================================== */
+function processAll() {
+  S.P = {};
+  if (S.syn) { for (const s of STATIONS) S.P[s.id] = processPrecip(S.syn[s.id], s.mode); corroborate(S.P, STATIONS.map(s => s.id)); }
+  S.P.TULU1 = scanPrecip(S.scan);
+}
+function safe(fn, name) { try { fn(); } catch (e) { console.error(name, e); } }
+function renderAll() {
+  document.querySelectorAll('#presets [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === S.win.preset));
+  document.getElementById('meta').textContent = S.savedAt ? `${S.fromCache ? 'saved copy from' : 'loaded'} ${fmtDT(S.savedAt)}` : 'loading…';
+  document.getElementById('offline').textContent = S.fromCache ? `Offline copy saved ${fmtDT(S.savedAt, { tz: true })} (${ago(S.savedAt)}). It updates the next time this page loads with signal.` : '';
+  safe(processAll, 'process'); safe(renderTiles, 'tiles'); safe(renderForecast, 'forecast'); safe(renderHistory, 'history'); safe(renderMap, 'map'); safe(renderClimate, 'climate'); safe(renderTable, 'table');
+}
+let loadSeq = 0;
+async function loadAll() {
+  const seq = ++loadSeq;
+  Object.assign(S.win, windowFromPreset(S.win.preset)); S.view = null; document.getElementById('zoom-reset').classList.add('hidden');
+  try { history.replaceState(null, '', location.pathname + location.search + '#w=' + S.win.preset); } catch (e) { }
+  const { a, b } = S.win, ok = { n: 0 };
+  for (const k of Object.keys(SRC)) setStatus(k, 'loading', 'loading');
+  const job = (k, p, set, msg) => p.then(d => { if (seq !== loadSeq) return; set(d); ok.n++; setStatus(k, 'ok', msg(d)); renderAll(); })
+    .catch(e => { if (seq !== loadSeq) return; setStatus(k, S.fromCache ? 'warn' : 'err', S.fromCache ? 'offline, showing saved copy' : e.message); });
+  await Promise.allSettled([
+    job('nws', loadNWS(), d => { S.nws = d; }, d => `issued ${fmtWhen(d.camp.updated)}`),
+    job('iem', loadIEM(a, b), d => { S.iem = d; }, d => d.hourly ? 'hourly, Stage IV' : 'daily, MRMS'),
+    job('radar', radarNow(), d => { S.radar = d; }, d => fmtTime(d.t)),
+    job('scan', loadScan(a - DAY, b), d => { S.scan = d; }, d => d.prcp.length ? `to ${fmtWhen(d.prcp[d.prcp.length - 1].t)}` : 'no data'),
+    job('syn', loadSynoptic(a, b), d => { S.syn = d; }, d => `${STATIONS.filter(s => d[s.id]).length}/${STATIONS.length} stations`),
+  ]);
+  if (seq !== loadSeq) return;
+  if (ok.n) { S.fromCache = false; S.savedAt = Date.now(); saveSnap(); }
+  renderAll();
+}
+function initUI() {
+  document.querySelectorAll('#presets [data-p]').forEach(b => b.onclick = () => { S.win.preset = b.dataset.p; loadAll(); });
+  document.getElementById('refresh').onclick = () => loadAll();
+  document.getElementById('zoom-reset').onclick = () => setView(null);
+  document.getElementById('map-radar').onchange = () => safe(renderMap, 'map');
+  document.getElementById('sources').innerHTML = [
+    `Sources. Forecast: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank" rel="noopener">NWS gridded forecast API</a> (SLC office). Radar history: <a href="https://mesonet.agron.iastate.edu/iemre/" target="_blank" rel="noopener">IEM IEMRE</a> (NCEP Stage IV, NOAA MRMS, PRISM). Radar now: <a href="https://mesonet.agron.iastate.edu/docs/nexrad_mosaic/" target="_blank" rel="noopener">IEM NEXRAD mosaic</a>.`,
+    `Gauges: <a href="${SCAN.link}" target="_blank" rel="noopener">NRCS SCAN 2163 Tule Valley</a> via <a href="https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html" target="_blank" rel="noopener">AWDB</a>; ${STATIONS.map(s => `<a href="${mesoLink(s.id)}" target="_blank" rel="noopener">${s.id}</a>`).join(', ')} via the <a href="https://docs.synopticdata.com/services/time-series" target="_blank" rel="noopener">Synoptic API</a>. Map: Esri World Topo.`,
+  ].join('<br>');
+}
+const h = new URLSearchParams(location.hash.slice(1)).get('w'); if (h && ['72h', '7d', '30d', '90d'].includes(h)) S.win.preset = h;
+initUI();
+fetch('climate.json').then(r => r.json()).then(c => { S.clim = c; safe(renderClimate, 'climate'); }).catch(e => console.warn('climate', e));
+const snap = loadSnap();
+if (snap) { Object.assign(S, { syn: snap.syn, nws: snap.nws, iem: snap.iem, scan: snap.scan, radar: snap.radar, savedAt: snap.savedAt, fromCache: true }); if (snap.win && snap.win.preset === S.win.preset) Object.assign(S.win, snap.win); else Object.assign(S.win, windowFromPreset(S.win.preset)); renderAll(); }
+loadAll();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
+let _rz = null; window.addEventListener('resize', () => { clearTimeout(_rz); _rz = setTimeout(() => { safe(renderForecast, 'forecast'); safe(renderHistory, 'history'); }, 250); });
+
+</script>
+</body>
+</html>
