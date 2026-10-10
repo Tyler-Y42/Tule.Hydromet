@@ -176,22 +176,24 @@
 <div class="dash">
   <div class="col">
     <div class="card">
-      <div class="ch"><h3>Forecast, Painter Spring and Marjum Pass</h3><span class="u" id="f-range"></span></div>
+      <div class="ch"><h3>Forecast, Painter Spring and Marjum Pass</h3><span class="u" id="f-range"></span>
+        <span class="r"><button class="btn hidden" id="zoom-reset-f">Full forecast</button></span></div>
       <div class="plab"><b class="pl">a</b><span class="pt">Chance of rain and thunder</span><span class="u">%</span></div><ul class="kb" id="kb-fa"></ul><div class="cbox f"><canvas id="f-pop"></canvas></div>
       <div class="plab"><b class="pl">b</b><span class="pt">Forecast rain, running total</span><span class="u">mm</span></div><ul class="kb" id="kb-fb"></ul><div class="cbox f"><canvas id="f-qpf"></canvas></div>
       <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Wind and gusts, Painter Spring</span><span class="u">km/h</span></div><ul class="kb" id="kb-fd"></ul><div class="cbox f"><canvas id="f-wind"></canvas></div>
       <p class="cap" id="cap-f"></p>
+      <div class="zoomnote">Drag sideways across a chart to zoom; double tap or double click to reset.</div>
     </div>
     <div class="card">
       <div class="ch"><h3>Recent rain, Tule Valley</h3><span class="u" id="ts-range"></span>
-        <span class="r"><button class="btn hidden" id="zoom-reset">Full window</button></span></div>
+        <span class="r"><button class="btn hidden" id="zoom-reset-h">Full window</button></span></div>
       <div class="plab"><b class="pl">a</b><span class="pt" id="h-a-title">Rain from radar</span><span class="u" id="h-a-unit">mm h⁻¹</span></div><ul class="kb" id="kb-ha"></ul><div class="cbox hr"><canvas id="h-hr"></canvas></div>
       <div class="plab"><b class="pl">b</b><span class="pt">Running total</span><span class="u">mm</span></div><ul class="kb" id="kb-hb"></ul><div class="cbox cum"><canvas id="h-cum"></canvas></div>
       <div class="plab"><b class="pl">c</b><span class="pt">Soil moisture, Tule Valley SCAN</span><span class="u">% by volume</span></div><ul class="kb" id="kb-hc"></ul><div class="cbox"><canvas id="h-soil"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
       <p class="cap" id="cap-h"></p>
-      <div class="zoomnote">Drag across a chart to zoom; double-click to reset.</div>
+      <div class="zoomnote">Drag sideways across a chart to zoom; double tap or double click to reset.</div>
     </div>
   </div>
   <div class="col">
@@ -547,7 +549,7 @@ function bearing(p, q) { const ang = (Math.atan2((q.lon - p.lon) * 86, (q.lat - 
 /* ======================================================================
    State, offline copy
    ====================================================================== */
-const S = { win: { preset: '7d', a: 0, b: 0 }, syn: null, P: {}, nws: null, iem: null, scan: null, radar: null, status: {}, hoverX: null, drag: null, view: null, at: {}, stale: new Set() };
+const S = { win: { preset: '7d', a: 0, b: 0 }, syn: null, P: {}, nws: null, iem: null, scan: null, radar: null, status: {}, hover: null, drag: null, views: { f: null, h: null }, at: {}, stale: new Set() };
 const FEEDS = { nws: 'forecast', iem: 'radar history', radar: 'radar now', scan: 'soil and valley gauge', syn: 'gauges' };
 const SNAP_KEY = 'tule-hydromet-snapshot-v1';
 function saveSnap() { try { localStorage.setItem(SNAP_KEY, JSON.stringify({ savedAt: Date.now(), at: S.at, win: S.win, syn: S.syn, nws: S.nws, iem: S.iem, scan: S.scan, radar: S.radar })); } catch (e) { console.warn('could not save offline copy', e); } }
@@ -589,8 +591,8 @@ Chart.register({
       for (const it of items) { ctx.fillStyle = it.color === '#ffffff' ? INK : it.color; ctx.fillText(it.text, lx, it.y); }
       ctx.restore();
     }
-    if (o && o.sync && S.drag && S.drag.x1 != null) { const x0 = x.getPixelForValue(S.drag.v0), x1 = x.getPixelForValue(S.drag.v1); ctx.save(); ctx.fillStyle = 'rgba(28,92,171,0.12)'; ctx.fillRect(Math.min(x0, x1), ca.top, Math.abs(x1 - x0), ca.bottom - ca.top); ctx.restore(); }
-    if (o && o.sync && S.hoverX != null && S.hoverX >= x.min && S.hoverX <= x.max) { const px = x.getPixelForValue(S.hoverX); ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 0.75; ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke(); ctx.restore(); }
+    if (o && o.sync && S.drag && S.drag.g === o.group && S.drag.x1 != null) { const x0 = x.getPixelForValue(S.drag.v0), x1 = x.getPixelForValue(S.drag.v1); ctx.save(); ctx.fillStyle = 'rgba(28,92,171,0.12)'; ctx.fillRect(Math.min(x0, x1), ca.top, Math.abs(x1 - x0), ca.bottom - ca.top); ctx.restore(); }
+    if (o && o.sync && S.hover && S.hover.g === o.group && S.hover.x >= x.min && S.hover.x <= x.max) { const px = x.getPixelForValue(S.hover.x); ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 0.75; ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke(); ctx.restore(); }
   },
 });
 // Ticks: bold dates at local midnight with a faint day line; clock times in between,
@@ -628,7 +630,7 @@ function tickLabel(v, span, tick) {
 const axisStyle = () => ({ border: { display: true, color: INK, width: 1.25 }, grid: { display: true, drawOnChartArea: false, drawTicks: true, tickLength: 5, color: INK, lineWidth: 1.25 } });
 const timeGrid = () => ({ display: true, drawOnChartArea: true, drawTicks: true, tickLength: 5, tickColor: INK, lineWidth: c => c.tick && c.tick.major ? 1 : 1.25, color: c => c.tick && c.tick.major ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0)' });
 const charts = {};
-function redrawSynced(except) { for (const c of Object.values(charts)) if (c !== except && c.options.plugins.paper && c.options.plugins.paper.sync) c.draw(); }
+function redrawSynced(except, g) { for (const c of Object.values(charts)) { const o = c.options.plugins.paper; if (c !== except && o && o.sync && (g == null || o.group === g)) c.draw(); } }
 function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, legend = false, paper = {}, type = 'line', tooltipLabel, xRange, decimate = true, rightPad, yTitle = '', y2 = null, reserveY2 = false } = {}) {
   const [a, b] = xRange || VIEW(), span = b - a;
   const cfg = {
@@ -637,13 +639,13 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
       animation: false, responsive: true, maintainAspectRatio: false, parsing: false, normalized: true,
       layout: { padding: { right: rightPad != null ? rightPad : endLabels ? RIGHT_PAD : 10, top: 4 } },
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
-      onHover: (e, _el, ch) => { if (!ch.options.plugins.paper.sync) return; const xv = ch.scales.x.getValueForPixel(e.x); S.hoverX = (xv >= ch.scales.x.min && xv <= ch.scales.x.max) ? xv : null; redrawSynced(ch); },
+      onHover: (e, _el, ch) => { const o = ch.options.plugins.paper; if (!o.sync) return; const xv = ch.scales.x.getValueForPixel(e.x); S.hover = (xv >= ch.scales.x.min && xv <= ch.scales.x.max) ? { g: o.group, x: xv } : null; redrawSynced(ch, o.group); },
       plugins: {
         legend: legend ? { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, padding: 8, color: INK2, font: { size: 10 } } } : { display: false },
         tooltip: { backgroundColor: 'rgba(255,255,255,0.96)', titleColor: INK, bodyColor: INK, borderColor: INK, borderWidth: 0.5, cornerRadius: 2, padding: 6, boxWidth: 8, boxHeight: 8,
           callbacks: { title: it => it.length ? fmtDT(it[0].parsed.x, { tz: true }) : '', label: tooltipLabel || (c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}`) } },
         decimation: { enabled: decimate && type === 'line', algorithm: 'min-max' },
-        paper: { sync: true, events: [], cells: [], ...paper, endLabels },
+        paper: { sync: true, group: 'h', events: [], cells: [], ...paper, endLabels },
       },
       scales: {
         x: { type: 'linear', min: a, max: b, offset: false, ...axisStyle(), grid: timeGrid(), title: { display: true, text: `Date and time (${zoneAbbr(b)})`, color: INK, font: { size: 10.5, weight: '700' }, padding: { top: 1 } },
@@ -663,13 +665,21 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
   if (charts[id]) charts[id].destroy();
   const el = document.getElementById(id);
   charts[id] = new Chart(el, cfg);
-  el.onmouseleave = () => { S.hoverX = null; redrawSynced(null); };
+  el.onmouseleave = () => { S.hover = null; redrawSynced(null); };
   if (cfg.options.plugins.paper.sync) {
-    const ch = charts[id];
-    el.onpointerdown = e => { const v = ch.scales.x.getValueForPixel(e.offsetX); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { v0: v, v1: v, px: e.offsetX, x1: null }; };
-    el.onpointermove = e => { if (!S.drag) return; if (Math.abs(e.offsetX - S.drag.px) > 6) { S.drag.x1 = e.offsetX; S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(e.offsetX))); redrawSynced(null); } };
-    el.onpointerup = () => { const d = S.drag; S.drag = null; if (d && d.x1 != null && Math.abs(d.v1 - d.v0) > 20 * MIN) setView([Math.min(d.v0, d.v1), Math.max(d.v0, d.v1)]); else redrawSynced(null); };
-    el.ondblclick = () => setView(null);
+    // Drag across a chart (mouse or finger) to zoom its group; double click or double tap resets.
+    // .cbox has touch-action: pan-y, so vertical swipes still scroll the page.
+    const ch = charts[id], g = cfg.options.plugins.paper.group;
+    el.onpointerdown = e => { const v = ch.scales.x.getValueForPixel(e.offsetX); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { g, v0: v, v1: v, px: e.offsetX, x1: null }; try { el.setPointerCapture(e.pointerId); } catch (_) { } };
+    el.onpointermove = e => { if (!S.drag || S.drag.g !== g) return; if (Math.abs(e.offsetX - S.drag.px) > 8) { S.drag.x1 = e.offsetX; S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(e.offsetX))); redrawSynced(null, g); } };
+    el.onpointerup = e => {
+      const d = S.drag; S.drag = null;
+      if (d && d.x1 != null && Math.abs(d.v1 - d.v0) > 20 * MIN) { setView(g, [Math.min(d.v0, d.v1), Math.max(d.v0, d.v1)]); return; }
+      const now = Date.now(); if (e.pointerType !== 'mouse' && el._lastTap && now - el._lastTap < 350) { el._lastTap = 0; setView(g, null); return; } el._lastTap = now;
+      redrawSynced(null, g);
+    };
+    el.onpointercancel = () => { S.drag = null; redrawSynced(null, g); };
+    el.ondblclick = () => setView(g, null);
   }
   return charts[id];
 }
@@ -677,10 +687,10 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
 /* ======================================================================
    Rendering
    ====================================================================== */
-const VIEW = () => S.view || [S.win.a, S.win.b];
-function setView(v) { S.view = v; document.getElementById('zoom-reset').classList.toggle('hidden', !v); safe(renderHistory, 'history'); }
+const VIEW = () => S.views.h || [S.win.a, S.win.b];
+function setView(g, v) { S.views[g] = v; document.getElementById(`zoom-reset-${g}`).classList.toggle('hidden', !v); safe(g === 'f' ? renderForecast : renderHistory, g); }
 const put = (id, items) => { const el = document.getElementById(id); if (el) el.innerHTML = items.filter(Boolean).map(t => `<li>${t}</li>`).join(''); };
-const tripBand = () => ({ events: [{ start: TRIP.a, end: TRIP.b, label: 'Your trip, Mon to Wed' }], labels: true });
+const tripBand = () => ({ events: [{ start: TRIP.a, end: TRIP.b }] });
 const stepPts = (series, f = v => v) => { const out = []; for (const x of series) { out.push({ x: x.a, y: f(x.v) }); out.push({ x: x.b - 1, y: f(x.v) }); } return out; };
 
 function tripStats(key) {
@@ -708,19 +718,19 @@ function renderTiles() {
 
 function renderForecast() {
   const n = S.nws; if (!n) return;
-  const now = Date.now(), end = Math.max(...PTS.map(p => seriesEnd(n[p.key] ? n[p.key].pop : []) || now + DAY)), xr = [now - 2 * HOUR, end];
-  const band = tripBand(), cut = s => s.filter(x => x.b > xr[0] && x.a < xr[1]);
+  const now = Date.now(), end = Math.max(...PTS.map(p => seriesEnd(n[p.key] ? n[p.key].pop : []) || now + DAY)), full = [now - 2 * HOUR, end], xr = S.views.f || full;
+  const band = { ...tripBand(), group: 'f' }, cut = s => s.filter(x => x.b > full[0] && x.a < full[1]);
   const line = (p, s, label, extra = {}) => ({ label: `${p.name}${label}`, endLabel: p === CAMP ? 'Camp' : 'Marjum', data: stepPts(cut(s)), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3], ...extra });
   const pop = [line(CAMP, n.camp.pop, ', rain'), line(MARJUM, n.marjum.pop, ', rain')];
   if (n.camp.thunder.some(x => x.v > 0)) pop.push({ label: 'Painter Spring, thunder', endLabel: 'Thunder', data: stepPts(cut(n.camp.thunder)), borderColor: '#555', backgroundColor: '#555', labelColor: '#555', borderWidth: 1.2, borderDash: [1, 2.5] });
-  timeChart('f-pop', pop, { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Chance, %', paper: { ...band, sync: false }, y: { min: 0, max: 100, ticks: { stepSize: 25, color: INK } }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y}%` });
-  const run = s => { const out = [{ x: xr[0], y: 0 }]; let c = 0; for (const x of s) { if (x.b <= now) continue; const f = Math.min(1, (x.b - Math.max(x.a, now)) / (x.b - x.a)); c += x.v * f; out.push({ x: x.b, y: c }); } return out; };
+  timeChart('f-pop', pop, { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Chance, %', paper: band, y: { min: 0, max: 100, ticks: { stepSize: 25, color: INK } }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y}%` });
+  const run = s => { const out = [{ x: full[0], y: 0 }]; let c = 0; for (const x of s) { if (x.b <= now) continue; const f = Math.min(1, (x.b - Math.max(x.a, now)) / (x.b - x.a)); c += x.v * f; out.push({ x: x.b, y: c }); } return out; };
   timeChart('f-qpf', PTS.map(p => ({ label: p.name, endLabel: `${p === CAMP ? 'Camp' : 'Marjum'} ${run(n[p.key].qpf).pop().y.toFixed(1)}`, data: run(n[p.key].qpf), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, stepped: true, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3] })),
-    { xRange: xr, endLabels: true, decimate: false, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, paper: { ...band, sync: false }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
+    { xRange: xr, endLabels: true, decimate: false, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, paper: band, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
   timeChart('f-temp', PTS.map(p => line(p, n[p.key].temp, '')).map(d => ({ ...d, data: cut(n[d.label === CAMP.name ? 'camp' : 'marjum'].temp).map(x => ({ x: x.a + (x.b - x.a) / 2, y: x.v })) })),
-    { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Air temp, °C', paper: { ...band, sync: false, hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °C (${(c.parsed.y * 9 / 5 + 32).toFixed(0)} °F)` });
+    { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Air temp, °C', paper: { ...band, hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °C (${(c.parsed.y * 9 / 5 + 32).toFixed(0)} °F)` });
   timeChart('f-wind', [{ label: 'Gust', endLabel: 'Gust', data: stepPts(cut(n.camp.gust)), borderColor: '#9a988f', backgroundColor: '#9a988f', labelColor: INK3, borderWidth: 1.2 }, { label: 'Wind', endLabel: 'Wind', data: stepPts(cut(n.camp.wind)), borderColor: INK, backgroundColor: INK, labelColor: INK, borderWidth: 2 }],
-    { xRange: xr, endLabels: true, decimate: false, yTitle: 'km/h', y2: { title: 'mph', conv: v => v / 1.609, dec: 0 }, paper: { ...band, sync: false }, y: { beginAtZero: true }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} km/h (${(c.parsed.y / 1.609).toFixed(0)} mph)` });
+    { xRange: xr, endLabels: true, decimate: false, yTitle: 'km/h', y2: { title: 'mph', conv: v => v / 1.609, dec: 0 }, paper: band, y: { beginAtZero: true }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} km/h (${(c.parsed.y / 1.609).toFixed(0)} mph)` });
   const c = tripStats('camp'), m = tripStats('marjum'), A = [], B = [], D = [];
   if (c && c.popEnd != null && c.popEnd < TRIP.b) A.push(`<span class="flag">The forecast ends ${fmtDT(c.popEnd)}, before the trip does</span>`);
   const pre = [TRIP.a - 2 * DAY, TRIP.a], pc = maxIn(n.camp.pop, ...pre), pm = maxIn(n.marjum.pop, ...pre), qm = sumIn(n.marjum.qpf, ...pre).mm;
@@ -730,7 +740,7 @@ function renderForecast() {
   const gmax = maxIn(n.camp.gust, TRIP.a, TRIP.b); if (gmax.v >= 50) D.push(`<span class="flag">Gusts to ${gmax.v.toFixed(0)} km/h (${(gmax.v / 1.609).toFixed(0)} mph) during the trip, ${fmtDT(gmax.at)}</span>`);
   put('kb-fa', A); put('kb-fb', B); put('kb-fc', []); put('kb-fd', D);
   document.getElementById('f-range').textContent = `issued ${fmtDT(n.camp.updated, { tz: true })}`;
-  document.getElementById('cap-f').innerHTML = `Solid is Painter Spring, dashed Marjum Pass; gray band is your trip. <b>a</b> Chance is for each forecast period, so a long flat step is one broad period, not steady rain. <b>b</b> NWS amounts (QPF) added up from now. <b>d</b> 1 km/h = 0.62 mph.`;
+  document.getElementById('cap-f').innerHTML = `Solid is Painter Spring, dashed Marjum Pass; gray band is your trip, Mon to Wed. <b>a</b> Chance is for each forecast period, so a long flat step is one broad period, not steady rain. <b>b</b> NWS amounts (QPF) added up from now. <b>d</b> 1 km/h = 0.62 mph.`;
 }
 
 function renderHistory() {
@@ -756,7 +766,7 @@ function renderHistory() {
   if (S.scan && S.scan.tobs.length) tds.push({ label: 'Tule Valley SCAN, 4,600 ft', endLabel: `Valley ${ft(SCAN.elev)}`, data: S.scan.tobs.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SCAN.color, backgroundColor: SCAN.color, labelColor: SCAN.color, borderWidth: 2.2 });
   for (const s of STATIONS.filter(x => x.group === 'valley')) { const st = S.syn && S.syn[s.id]; if (!st || !st.v.air_temp) continue; const pts = []; st.t.forEach((t, i) => { const v = st.v.air_temp[i]; if (v != null && t >= a && t <= b) pts.push({ x: t, y: v }); }); if (pts.length) tds.push({ label: `${s.name}, ${ft(s.elev)} ft`, endLabel: `${s.short.replace('Valley ', '')} ${ft(s.elev)}`, data: pts, borderColor: s.color, backgroundColor: s.color, labelColor: s.color, borderWidth: 1.4 }); }
   timeChart('h-temp', tds, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Air temp, °C', paper: { hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} °C` });
-  document.getElementById('ts-range').textContent = `${fmtDT(va)} to ${fmtDT(vb, { tz: true })}${S.view ? ' (zoomed)' : ''}`;
+  document.getElementById('ts-range').textContent = `${fmtDT(va)} to ${fmtDT(vb, { tz: true })}${S.views.h ? ' (zoomed)' : ''}`;
   const A = [], C = [];
   if (S.iem) { const rc = radarTotal(S.iem.camp, va, vb), rm = radarTotal(S.iem.marjum, va, vb); if (rc != null) A.push(rc < 0.25 && rm < 0.25 ? 'No measurable rain on radar at either point' : `Radar: ${mmIn(rc)} at Painter Spring, ${mmIn(rm)} on Marjum Pass`); }
   const s2 = S.scan && S.scan.sms[2];
@@ -827,7 +837,7 @@ function renderAll() {
 let loadSeq = 0;
 async function loadAll() {
   const seq = ++loadSeq;
-  Object.assign(S.win, windowFromPreset(S.win.preset)); S.view = null; document.getElementById('zoom-reset').classList.add('hidden');
+  Object.assign(S.win, windowFromPreset(S.win.preset)); S.views = { f: null, h: null }; for (const g of ['f', 'h']) document.getElementById(`zoom-reset-${g}`).classList.add('hidden');
   try { history.replaceState(null, '', location.pathname + location.search + '#w=' + S.win.preset); } catch (e) { }
   const { a, b } = S.win, ok = { n: 0 };
   for (const k of Object.keys(SRC)) setStatus(k, 'loading', 'loading');
@@ -847,7 +857,7 @@ async function loadAll() {
 function initUI() {
   document.querySelectorAll('#presets [data-p]').forEach(b => b.onclick = () => { S.win.preset = b.dataset.p; loadAll(); });
   document.getElementById('refresh').onclick = () => loadAll();
-  document.getElementById('zoom-reset').onclick = () => setView(null);
+  document.getElementById('zoom-reset-f').onclick = () => setView('f', null); document.getElementById('zoom-reset-h').onclick = () => setView('h', null);
   document.getElementById('map-radar').onchange = () => safe(renderMap, 'map');
   document.getElementById('sources').innerHTML = [
     `Sources. Forecast: <a href="https://www.weather.gov/documentation/services-web-api" target="_blank" rel="noopener">NWS gridded forecast API</a> (SLC office). Radar history: <a href="https://mesonet.agron.iastate.edu/iemre/" target="_blank" rel="noopener">IEM IEMRE</a> (NCEP Stage IV, NOAA MRMS). Radar now: <a href="https://mesonet.agron.iastate.edu/docs/nexrad_mosaic/" target="_blank" rel="noopener">IEM NEXRAD mosaic</a>.`,
