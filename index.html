@@ -572,7 +572,7 @@ Chart.defaults.color = INK2;
 Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
 Chart.defaults.font.weight = '600';
 Chart.defaults.font.size = 10.5;
-const AXIS_W = 66, Y2_W = 46, RIGHT_PAD = 112;
+const NARROW = window.innerWidth < 600, AXIS_W = NARROW ? 50 : 66, Y2_W = NARROW ? 34 : 46, RIGHT_PAD = NARROW ? 74 : 112; // phones: keep the plot wide
 Chart.register({
   id: 'paper',
   beforeDatasetsDraw(chart, _a, o) {
@@ -700,7 +700,7 @@ function tripStats(key) {
 function renderTiles() {
   const tiles = [], c = tripStats('camp'), m = tripStats('marjum'), now = Date.now();
   tiles.push(['Rain chance, trip', c && c.pop.v != null ? `${c.pop.v}%` : '—', c && c.pop.v != null ? `highest, ${fmtDT(c.pop.at, { wd: true }).replace(/ \d+:\d+ [AP]M$/, '')}${m && m.pop.v != null ? `; Marjum ${m.pop.v}%` : ''}` : 'forecast not loaded', c && c.pop.v >= 40]);
-  tiles.push(['Forecast rain, trip', c ? (c.qpfFull ? mmIn(c.qpf) : c.qpf > 0 ? `≥ ${c.qpf.toFixed(1)} mm` : 'not issued yet') : '—', c ? (c.qpfFull ? `Marjum ${m ? m.qpf.toFixed(1) : '—'} mm` : `amounts run to ${fmtDT(c.qpfEnd)}`) : '', c && c.qpf >= 5]);
+  tiles.push(['Forecast rain, trip', c ? (c.qpfFull ? `${c.qpf.toFixed(1)} mm` : c.qpf > 0 ? `≥ ${c.qpf.toFixed(1)} mm` : 'not issued yet') : '—', c ? (c.qpfFull ? `${inch(c.qpf)}; Marjum ${m ? m.qpf.toFixed(1) : '—'} mm` : `amounts run to ${fmtDT(c.qpfEnd)}`) : '', c && c.qpf >= 5]);
   tiles.push(['Thunder chance, trip', c && c.thunder.v != null ? `${c.thunder.v}%` : '—', c && c.thunder.v ? `highest, ${fmtDT(c.thunder.at).replace(/ \d+:\d+ [AP]M$/, '')}` : 'none forecast', c && c.thunder.v >= 20]);
   const r7 = S.iem ? radarTotal(S.iem.camp, now - 7 * DAY, now) : null;
   tiles.push(['Rain, last 7 days', S.iem && S.iem.hourly && r7 != null ? `${r7.toFixed(1)} mm` : '—', S.iem && S.iem.hourly ? `radar at camp; valley SCAN ${mmStr(sumPrecip(S.P.TULU1, now - 7 * DAY, now).mm, 1)} mm` : 'pick 72 h or 7 d']);
@@ -719,12 +719,12 @@ function renderForecast() {
   const n = S.nws; if (!n) return;
   const now = Date.now(), end = Math.max(...PTS.map(p => seriesEnd(n[p.key] ? n[p.key].pop : []) || now + DAY)), xr = [now - 2 * HOUR, end];
   const band = tripBand(), cut = s => s.filter(x => x.b > xr[0] && x.a < xr[1]);
-  const line = (p, s, label, extra = {}) => ({ label: `${p.name}${label}`, endLabel: p === CAMP ? 'Painter Spr.' : 'Marjum', data: stepPts(cut(s)), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3], ...extra });
+  const line = (p, s, label, extra = {}) => ({ label: `${p.name}${label}`, endLabel: p === CAMP ? 'Camp' : 'Marjum', data: stepPts(cut(s)), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3], ...extra });
   const pop = [line(CAMP, n.camp.pop, ', rain'), line(MARJUM, n.marjum.pop, ', rain')];
   if (n.camp.thunder.some(x => x.v > 0)) pop.push({ label: 'Painter Spring, thunder', endLabel: 'Thunder', data: stepPts(cut(n.camp.thunder)), borderColor: '#555', backgroundColor: '#555', labelColor: '#555', borderWidth: 1.2, borderDash: [1, 2.5] });
   timeChart('f-pop', pop, { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Chance, %', paper: { ...band, sync: false }, y: { min: 0, max: 100, ticks: { stepSize: 25, color: INK } }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y}%` });
   const run = s => { const out = [{ x: xr[0], y: 0 }]; let c = 0; for (const x of s) { if (x.b <= now) continue; const f = Math.min(1, (x.b - Math.max(x.a, now)) / (x.b - x.a)); c += x.v * f; out.push({ x: x.b, y: c }); } return out; };
-  timeChart('f-qpf', PTS.map(p => ({ label: p.name, endLabel: `${p === CAMP ? 'Painter Spr.' : 'Marjum'} ${run(n[p.key].qpf).pop().y.toFixed(1)}`, data: run(n[p.key].qpf), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, stepped: true, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3] })),
+  timeChart('f-qpf', PTS.map(p => ({ label: p.name, endLabel: `${p === CAMP ? 'Camp' : 'Marjum'} ${run(n[p.key].qpf).pop().y.toFixed(1)}`, data: run(n[p.key].qpf), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, stepped: true, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3] })),
     { xRange: xr, endLabels: true, decimate: false, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, paper: { ...band, sync: false }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
   timeChart('f-temp', PTS.map(p => line(p, n[p.key].temp, '')).map(d => ({ ...d, data: cut(n[d.label === CAMP.name ? 'camp' : 'marjum'].temp).map(x => ({ x: x.a + (x.b - x.a) / 2, y: x.v })) })),
     { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Air temp, °C', paper: { ...band, sync: false, hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °C (${(c.parsed.y * 9 / 5 + 32).toFixed(0)} °F)` });
@@ -746,7 +746,7 @@ function renderHistory() {
   const [va, vb] = VIEW(), a = S.win.a, b = S.win.b, hourly = S.iem && S.iem.hourly;
   document.getElementById('h-a-title').textContent = hourly ? 'Rain from radar, hourly' : 'Rain from radar, daily';
   document.getElementById('h-a-unit').textContent = hourly ? 'mm h⁻¹' : 'mm d⁻¹';
-  const w = document.getElementById('h-hr').parentElement.clientWidth - 66 - 20, step = hourly ? HOUR : DAY, barW = Math.max(1, Math.min(14, w / Math.max(1, (vb - va) / step) * 0.8));
+  const w = document.getElementById('h-hr').parentElement.clientWidth - AXIS_W - RIGHT_PAD, step = hourly ? HOUR : DAY, barW = Math.max(1, Math.min(14, w / Math.max(1, (vb - va) / step) * 0.8));
   const ds = [];
   if (S.iem) {
     ds.push({ type: 'bar', label: 'Painter Spring', data: S.iem.camp.filter(r => r.mm > 0).map(r => ({ x: r.t0 + (r.t - r.t0) / 2, y: r.mm })), backgroundColor: CAMP.color, barThickness: barW, grouped: false, order: 2 });
@@ -755,7 +755,7 @@ function renderHistory() {
   timeChart('h-hr', ds, { type: 'bar', legend: true, xRange: [va, vb], rightPad: RIGHT_PAD, yTitle: hourly ? 'mm per hour' : 'mm per day', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: hourly ? 0.5 : 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} mm (${inch(c.parsed.y)})` });
   const cum = [];
   const cumLine = (label, endName, incs, color, opts = {}) => { const pts = [{ x: a, y: 0 }]; let c = 0; for (const x of incs) if (x.t > a && x.t <= b && x.mm > 0) { c = r3(c + x.mm); pts.push({ x: x.t, y: c }); } pts.push({ x: Math.min(b, Date.now()), y: c }); return { label, endLabel: `${endName} ${mmStr(c, 1)}`, data: pts, borderColor: color, backgroundColor: color, labelColor: color, stepped: true, ...opts }; };
-  if (S.iem) for (const p of PTS) cum.push(cumLine(`${p.name}, radar`, p === CAMP ? 'Painter Spr.' : 'Marjum', S.iem[p.key], p.color, { borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: [4, 3] }));
+  if (S.iem) for (const p of PTS) cum.push(cumLine(`${p.name}, radar`, p === CAMP ? 'Camp' : 'Marjum', S.iem[p.key], p.color, { borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: [4, 3] }));
   for (const s of ALL_ST) { const p = S.P[s.id]; if (!p || !p.obs.length) continue; cum.push(cumLine(`${s.name} (${s.id}), ${ft(s.elev)} ft, ${kmFrom(CAMP, s).toFixed(0)} km`, s.short, p.incs.filter(x => x.include), s.color, { borderWidth: s.group === 'valley' ? 2.2 : 1.1, labelColor: s.group === 'valley' ? s.color : INK3 })); }
   timeChart('h-cum', cum, { endLabels: true, decimate: false, xRange: [va, vb], yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
   const soil = [], SC = { 2: '#0072B2', 4: '#56B4E9', 8: '#009E73', 20: '#8a6d3b', 40: '#9a988f' };
