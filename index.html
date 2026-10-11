@@ -180,7 +180,7 @@
         <span class="r"><button class="btn hidden" id="zoom-reset-f">Full forecast</button></span></div>
       <div class="plab"><b class="pl">a</b><span class="pt">Chance of rain and thunder</span><span class="u">%</span></div><ul class="kb" id="kb-fa"></ul><div class="cbox f"><canvas id="f-pop"></canvas></div>
       <div class="plab"><b class="pl">b</b><span class="pt">Forecast rain, running total</span><span class="u">mm</span></div><ul class="kb" id="kb-fb"></ul><div class="cbox f"><canvas id="f-qpf"></canvas></div>
-      <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
+      <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Wind and gusts, Painter Spring</span><span class="u">km/h</span></div><ul class="kb" id="kb-fd"></ul><div class="cbox f"><canvas id="f-wind"></canvas></div>
       <p class="cap" id="cap-f"></p>
       <div class="zoomnote">Pinch or drag sideways to zoom; double tap or double click to reset.</div>
@@ -191,7 +191,7 @@
       <div class="plab"><b class="pl">a</b><span class="pt" id="h-a-title">Rain from radar</span><span class="u" id="h-a-unit">mm h⁻¹</span></div><ul class="kb" id="kb-ha"></ul><div class="cbox hr"><canvas id="h-hr"></canvas></div>
       <div class="plab"><b class="pl">b</b><span class="pt">Running total</span><span class="u">mm</span></div><ul class="kb" id="kb-hb"></ul><div class="cbox cum"><canvas id="h-cum"></canvas></div>
       <div class="plab"><b class="pl">c</b><span class="pt">Soil moisture, Tule Valley SCAN</span><span class="u">% by volume</span></div><ul class="kb" id="kb-hc"></ul><div class="cbox"><canvas id="h-soil"></canvas></div>
-      <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°C</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
+      <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
       <p class="cap" id="cap-h"></p>
       <div class="zoomnote">Pinch or drag sideways to zoom; double tap or double click to reset.</div>
     </div>
@@ -277,6 +277,7 @@ const inStr = mm => (mm == null || !isFinite(mm)) ? '—' : (mm / 25.4).toFixed(
 const mmIn = (mm, d = 1) => (mm == null || !isFinite(mm)) ? '—' : `${mm.toFixed(d)} mm (${(mm / 25.4).toFixed(2)} in)`;
 const cfs = q => (q == null || !isFinite(q)) ? '—' : (q >= 100 ? q.toFixed(0) : q >= 10 ? q.toFixed(1) : q.toFixed(2));
 const fToC = f => (f - 32) * 5 / 9;
+const cToF = c => c * 9 / 5 + 32; // temperatures are stored in °C and shown in °F
 const ft = n => Math.round(n).toLocaleString('en-US');
 function bisectRight(arr, x) { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] <= x) lo = m + 1; else hi = m; } return lo; }
 
@@ -752,8 +753,8 @@ function renderForecast() {
   const run = s => { const out = [{ x: full[0], y: 0 }]; let c = 0; for (const x of s) { if (x.b <= now) continue; const f = Math.min(1, (x.b - Math.max(x.a, now)) / (x.b - x.a)); c += x.v * f; out.push({ x: x.b, y: c }); } return out; };
   timeChart('f-qpf', PTS.map(p => ({ label: p.name, endLabel: `${p === CAMP ? 'Camp' : 'Marjum'} ${run(n[p.key].qpf).pop().y.toFixed(1)}`, data: run(n[p.key].qpf), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, stepped: true, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3] })),
     { xRange: xr, endLabels: true, decimate: false, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, paper: band, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
-  timeChart('f-temp', PTS.map(p => line(p, n[p.key].temp, '')).map(d => ({ ...d, data: cut(n[d.label === CAMP.name ? 'camp' : 'marjum'].temp).map(x => ({ x: x.a + (x.b - x.a) / 2, y: x.v })) })),
-    { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Air temp, °C', paper: { ...band, hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °C (${(c.parsed.y * 9 / 5 + 32).toFixed(0)} °F)` });
+  timeChart('f-temp', PTS.map(p => line(p, n[p.key].temp, '')).map(d => ({ ...d, data: cut(n[d.label === CAMP.name ? 'camp' : 'marjum'].temp).map(x => ({ x: x.a + (x.b - x.a) / 2, y: cToF(x.v) })) })),
+    { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Air temp, °F', paper: { ...band, hlines: [{ y: 32, label: '32 °F', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °F` });
   timeChart('f-wind', [{ label: 'Gust', endLabel: 'Gust', data: stepPts(cut(n.camp.gust)), borderColor: '#9a988f', backgroundColor: '#9a988f', labelColor: INK3, borderWidth: 1.2 }, { label: 'Wind', endLabel: 'Wind', data: stepPts(cut(n.camp.wind)), borderColor: INK, backgroundColor: INK, labelColor: INK, borderWidth: 2 }],
     { xRange: xr, endLabels: true, decimate: false, yTitle: 'km/h', y2: { title: 'mph', conv: v => v / 1.609, dec: 0 }, paper: band, y: { beginAtZero: true }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} km/h (${(c.parsed.y / 1.609).toFixed(0)} mph)` });
   const c = tripStats('camp'), m = tripStats('marjum'), A = [], B = [], D = [];
@@ -788,9 +789,9 @@ function renderHistory() {
   if (S.scan) for (const d of SMS_DEPTHS) { const v = S.scan.sms[d]; if (v && v.length) soil.push({ label: `${d} in deep`, endLabel: `${d} in`, data: v.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SC[d], backgroundColor: SC[d], labelColor: SC[d], borderWidth: d === 2 ? 2.2 : 1.4 }); }
   timeChart('h-soil', soil, { endLabels: true, xRange: [va, vb], paper: { full: [a, b] }, reserveY2: true, yTitle: 'Water, %', tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` });
   const tds = [];
-  if (S.scan && S.scan.tobs.length) tds.push({ label: 'Tule Valley SCAN, 4,600 ft', endLabel: `Valley ${ft(SCAN.elev)}`, data: S.scan.tobs.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SCAN.color, backgroundColor: SCAN.color, labelColor: SCAN.color, borderWidth: 2.2 });
-  for (const s of STATIONS.filter(x => x.group === 'valley')) { const st = S.syn && S.syn[s.id]; if (!st || !st.v.air_temp) continue; const pts = []; st.t.forEach((t, i) => { const v = st.v.air_temp[i]; if (v != null && t >= a && t <= b) pts.push({ x: t, y: v }); }); if (pts.length) tds.push({ label: `${s.name}, ${ft(s.elev)} ft`, endLabel: `${s.short.replace('Valley ', '')} ${ft(s.elev)}`, data: pts, borderColor: s.color, backgroundColor: s.color, labelColor: s.color, borderWidth: 1.4 }); }
-  timeChart('h-temp', tds, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Air temp, °C', paper: { full: [a, b], hlines: [{ y: 0, label: '0 °C', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} °C` });
+  if (S.scan && S.scan.tobs.length) tds.push({ label: 'Tule Valley SCAN, 4,600 ft', endLabel: `Valley ${ft(SCAN.elev)}`, data: S.scan.tobs.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: cToF(x.v) })), borderColor: SCAN.color, backgroundColor: SCAN.color, labelColor: SCAN.color, borderWidth: 2.2 });
+  for (const s of STATIONS.filter(x => x.group === 'valley')) { const st = S.syn && S.syn[s.id]; if (!st || !st.v.air_temp) continue; const pts = []; st.t.forEach((t, i) => { const v = st.v.air_temp[i]; if (v != null && t >= a && t <= b) pts.push({ x: t, y: cToF(v) }); }); if (pts.length) tds.push({ label: `${s.name}, ${ft(s.elev)} ft`, endLabel: `${s.short.replace('Valley ', '')} ${ft(s.elev)}`, data: pts, borderColor: s.color, backgroundColor: s.color, labelColor: s.color, borderWidth: 1.4 }); }
+  timeChart('h-temp', tds, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Air temp, °F', paper: { full: [a, b], hlines: [{ y: 32, label: '32 °F', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °F` });
   document.getElementById('ts-range').textContent = `${fmtDT(va)} to ${fmtDT(vb, { tz: true })}${S.views.h ? ' (zoomed)' : ''}`;
   const A = [], C = [];
   if (S.iem) { const rc = radarTotal(S.iem.camp, va, vb), rm = radarTotal(S.iem.marjum, va, vb); if (rc != null) A.push(rc < 0.25 && rm < 0.25 ? 'No measurable rain on radar at either point' : `Radar: ${mmIn(rc)} at Painter Spring, ${mmIn(rm)} on Marjum Pass`); }
