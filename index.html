@@ -103,6 +103,7 @@
   ul.kb li::marker { color: #0072B2; }
   ul.kb .flag { color: #D55E00; }
   .plab .u { color: var(--ink2); }
+  .cbox canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .cbox { position: relative; height: 136px; touch-action: pan-y; }
   .cbox.hr { height: 168px; } .cbox.cum { height: 168px; } .cbox.q { height: 150px; } .cbox.side { height: 236px; }
   @media (max-width: 600px) { .cbox { height: 160px; } .cbox.hr, .cbox.cum { height: 190px; } .cbox.q { height: 170px; } }
@@ -185,7 +186,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Wind and gusts, Painter Spring</span><span class="u">km/h</span></div><ul class="kb" id="kb-fd"></ul><div class="cbox f"><canvas id="f-wind"></canvas></div>
       <p class="cap" id="cap-f"></p>
-      <div class="zoomnote">Phone: pinch to zoom, slide one finger to read values, double tap to reset. Mouse: drag across a chart to zoom, double click to reset.</div>
+      <div class="zoomnote">Phone: press and hold, then drag to zoom a period; pinch to zoom; tap or slide to read values; double tap to reset. Mouse: drag to zoom, double click to reset.</div>
     </div>
     <div class="card">
       <div class="ch"><h3>Recent rain, Tule Valley</h3><span class="u" id="ts-range"></span>
@@ -195,7 +196,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Soil moisture, Tule Valley SCAN</span><span class="u">% by volume</span></div><ul class="kb" id="kb-hc"></ul><div class="cbox"><canvas id="h-soil"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
       <p class="cap" id="cap-h"></p>
-      <div class="zoomnote">Phone: pinch to zoom, slide one finger to read values, double tap to reset. Mouse: drag across a chart to zoom, double click to reset.</div>
+      <div class="zoomnote">Phone: press and hold, then drag to zoom a period; pinch to zoom; tap or slide to read values; double tap to reset. Mouse: drag to zoom, double click to reset.</div>
     </div>
   </div>
   <div class="col">
@@ -594,7 +595,7 @@ Chart.register({
       for (const it of items) { ctx.fillStyle = it.color === '#ffffff' ? INK : it.color; ctx.fillText(it.text, lx, it.y); }
       ctx.restore();
     }
-    if (o && o.sync && S.drag && S.drag.g === o.group && S.drag.x1 != null) { const x0 = x.getPixelForValue(S.drag.v0), x1 = x.getPixelForValue(S.drag.v1); ctx.save(); ctx.fillStyle = 'rgba(28,92,171,0.12)'; ctx.fillRect(Math.min(x0, x1), ca.top, Math.abs(x1 - x0), ca.bottom - ca.top); ctx.restore(); }
+    if (o && o.sync && S.drag && S.drag.g === o.group && S.drag.x1 != null) { const x0 = x.getPixelForValue(S.drag.v0), x1 = x.getPixelForValue(S.drag.v1); ctx.save(); ctx.fillStyle = 'rgba(28,92,171,0.12)'; ctx.fillRect(Math.min(x0, x1), ca.top, Math.max(2, Math.abs(x1 - x0)), ca.bottom - ca.top); ctx.restore(); }
     if (o && o.sync && S.hover && S.hover.g === o.group && S.hover.x >= x.min && S.hover.x <= x.max) { const px = x.getPixelForValue(S.hover.x); ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 0.75; ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke(); ctx.restore(); }
   },
 });
@@ -685,12 +686,18 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
     el.onpointerdown = e => {
       ptrs.set(e.pointerId, px(e)); try { el.setPointerCapture(e.pointerId); } catch (_) { }
       if (ptrs.size === 2) {
-        S.drag = null; const [x0, x1] = [...ptrs.values()], sc = ch.scales.x, ca = ch.chartArea;
+        clearTimeout(el._lpT); el._lp = null; S.drag = null; const [x0, x1] = [...ptrs.values()], sc = ch.scales.x, ca = ch.chartArea;
         el._pinch = { d0: Math.max(20, Math.abs(x1 - x0)), v0: sc.getValueForPixel((x0 + x1) / 2), span0: sc.max - sc.min, left: ca.left, w: ca.right - ca.left, range: null };
         return;
       }
-      if (ptrs.size > 2 || e.pointerType !== 'mouse') return; // touch: one finger only reads values
-      const v = ch.scales.x.getValueForPixel(px(e)); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { g, v0: v, v1: v, px: px(e), x1: null };
+      if (ptrs.size > 2) return;
+      const v = ch.scales.x.getValueForPixel(px(e)); if (v < ch.scales.x.min || v > ch.scales.x.max) return;
+      if (e.pointerType !== 'mouse') { // touch: tap or slide reads values; press and hold 350 ms, then drag, zooms
+        const x0 = px(e); clearTimeout(el._lpT); el._lp = { x: x0 };
+        el._lpT = setTimeout(() => { if (!el._lp || ptrs.size !== 1) return; S.drag = { g, v0: v, v1: v, px: x0, x1: x0, touch: true }; try { navigator.vibrate && navigator.vibrate(15); } catch (_) { } redrawSynced(null, g); }, 350);
+        return;
+      }
+      S.drag = { g, v0: v, v1: v, px: px(e), x1: null };
     };
     el.onpointermove = e => {
       if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, px(e));
@@ -703,17 +710,20 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
         for (const c of group()) { c.options.scales.x.min = a; c.options.scales.x.max = a + span; c.update('none'); }
         return;
       }
-      if (!S.drag || S.drag.g !== g) return; if (Math.abs(px(e) - S.drag.px) > 8) { S.drag.x1 = px(e); S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(px(e)))); redrawSynced(null, g); }
+      if (el._lp && !S.drag && Math.abs(px(e) - el._lp.x) > 10) { clearTimeout(el._lpT); el._lp = null; } // moved first: just reading values
+      if (!S.drag || S.drag.g !== g) return; if (S.drag.touch || Math.abs(px(e) - S.drag.px) > 8) { S.drag.x1 = px(e); S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(px(e)))); redrawSynced(null, g); }
     };
     el.onpointerup = e => {
-      ptrs.delete(e.pointerId);
+      ptrs.delete(e.pointerId); clearTimeout(el._lpT); el._lp = null;
       if (el._pinch) { if (ptrs.size === 0) { const r = el._pinch.range, full = cfg.options.plugins.paper.full; el._pinch = null; if (r) setView(g, full && r[1] - r[0] >= full[1] - full[0] - MIN ? null : r); } return; }
       const d = S.drag; S.drag = null;
       if (d && d.x1 != null && Math.abs(d.v1 - d.v0) > 20 * MIN) { setView(g, [Math.min(d.v0, d.v1), Math.max(d.v0, d.v1)]); return; }
+      if (d && d.touch) { redrawSynced(null, g); return; }
       const now = Date.now(); if (e.pointerType !== 'mouse' && el._lastTap && now - el._lastTap < 350) { el._lastTap = 0; setView(g, null); return; } el._lastTap = now;
       redrawSynced(null, g);
     };
-    el.onpointercancel = e => { ptrs.delete(e.pointerId); if (!ptrs.size) { const r = el._pinch && el._pinch.range; el._pinch = null; S.drag = null; if (r) setView(g, r); else redrawSynced(null, g); } };
+    el.oncontextmenu = e => e.preventDefault();
+    el.onpointercancel = e => { ptrs.delete(e.pointerId); clearTimeout(el._lpT); el._lp = null; if (!ptrs.size) { const r = el._pinch && el._pinch.range; el._pinch = null; S.drag = null; if (r) setView(g, r); else redrawSynced(null, g); } };
     el.ondblclick = () => setView(g, null);
   }
   return charts[id];
