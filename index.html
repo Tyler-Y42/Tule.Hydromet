@@ -103,7 +103,7 @@
   .plab .u { color: var(--ink2); }
   .cbox { position: relative; height: 136px; touch-action: pan-y; }
   .cbox.hr { height: 168px; } .cbox.cum { height: 168px; } .cbox.q { height: 150px; } .cbox.side { height: 236px; }
-  @media (max-width: 600px) { .cbox { height: 128px; } .cbox.hr, .cbox.cum { height: 156px; } .cbox.q { height: 140px; } }
+  @media (max-width: 600px) { .cbox { height: 160px; } .cbox.hr, .cbox.cum { height: 190px; } .cbox.q { height: 170px; } }
   .zoomnote { font-size: 0.74rem; color: var(--ink3); }
   p.cap { font-size: 0.78rem; color: var(--ink2); line-height: 1.5; margin: 6px 0 0; }
   p.cap b { color: var(--ink); }
@@ -154,7 +154,7 @@
   .offline { font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--flag); border-radius: 6px; padding: 6px 10px; margin: 0 0 8px; }
   .offline:empty { display: none; }
   .cbox.f { height: 132px; }
-  @media (max-width: 600px) { .cbox.f { height: 124px; } }
+  @media (max-width: 600px) { .cbox.f { height: 160px; } }
 </style>
 </head>
 <body>
@@ -183,7 +183,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Wind and gusts, Painter Spring</span><span class="u">km/h</span></div><ul class="kb" id="kb-fd"></ul><div class="cbox f"><canvas id="f-wind"></canvas></div>
       <p class="cap" id="cap-f"></p>
-      <div class="zoomnote">Pinch or drag sideways to zoom; double tap or double click to reset.</div>
+      <div class="zoomnote">Phone: pinch to zoom, slide one finger to read values, double tap to reset. Mouse: drag across a chart to zoom, double click to reset.</div>
     </div>
     <div class="card">
       <div class="ch"><h3>Recent rain, Tule Valley</h3><span class="u" id="ts-range"></span>
@@ -193,7 +193,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Soil moisture, Tule Valley SCAN</span><span class="u">% by volume</span></div><ul class="kb" id="kb-hc"></ul><div class="cbox"><canvas id="h-soil"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
       <p class="cap" id="cap-h"></p>
-      <div class="zoomnote">Pinch or drag sideways to zoom; double tap or double click to reset.</div>
+      <div class="zoomnote">Phone: pinch to zoom, slide one finger to read values, double tap to reset. Mouse: drag across a chart to zoom, double click to reset.</div>
     </div>
   </div>
   <div class="col">
@@ -680,7 +680,7 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
         el._pinch = { d0: Math.max(20, Math.abs(x1 - x0)), v0: sc.getValueForPixel((x0 + x1) / 2), span0: sc.max - sc.min, left: ca.left, w: ca.right - ca.left, range: null };
         return;
       }
-      if (ptrs.size > 2) return;
+      if (ptrs.size > 2 || e.pointerType !== 'mouse') return; // touch: one finger only reads values
       const v = ch.scales.x.getValueForPixel(px(e)); if (v < ch.scales.x.min || v > ch.scales.x.max) return; S.drag = { g, v0: v, v1: v, px: px(e), x1: null };
     };
     el.onpointermove = e => {
