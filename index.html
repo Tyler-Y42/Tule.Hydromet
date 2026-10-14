@@ -104,9 +104,9 @@
   ul.kb .flag { color: #D55E00; }
   .plab .u { color: var(--ink2); }
   .cbox canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  .cbox { position: relative; height: 136px; touch-action: pan-y; }
+  .cbox { position: relative; height: 136px; touch-action: pan-y pinch-zoom; }
   .cbox.hr { height: 168px; } .cbox.cum { height: 168px; } .cbox.q { height: 150px; } .cbox.side { height: 236px; }
-  @media (max-width: 600px) { .cbox { height: 160px; } .cbox.hr, .cbox.cum { height: 190px; } .cbox.q { height: 170px; } }
+  @media (max-width: 600px) { .cbox { height: 195px; } .cbox.hr, .cbox.cum { height: 210px; } .cbox.q { height: 200px; } }
   .zoomnote { font-size: 0.74rem; color: var(--ink3); }
   p.cap { font-size: 0.78rem; color: var(--ink2); line-height: 1.5; margin: 6px 0 0; }
   p.cap b { color: var(--ink); }
@@ -157,7 +157,7 @@
   .offline { font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--flag); border-radius: 6px; padding: 6px 10px; margin: 0 0 8px; }
   .offline:empty { display: none; }
   .cbox.f { height: 132px; }
-  @media (max-width: 600px) { .cbox.f { height: 160px; } }
+  @media (max-width: 600px) { .cbox.f { height: 195px; } }
 </style>
 </head>
 <body>
@@ -186,7 +186,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-fc"></ul><div class="cbox f"><canvas id="f-temp"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Wind and gusts, Painter Spring</span><span class="u">km/h</span></div><ul class="kb" id="kb-fd"></ul><div class="cbox f"><canvas id="f-wind"></canvas></div>
       <p class="cap" id="cap-f"></p>
-      <div class="zoomnote">Phone: press and hold, then drag to zoom a period; pinch to zoom; tap or slide to read values; double tap to reset. Mouse: drag to zoom, double click to reset.</div>
+      <div class="zoomnote">Phone: tap or slide to read values (tap outside a chart to close the readout); press and hold, then drag to zoom a period; double tap to reset. Mouse: drag to zoom, double click to reset.</div>
     </div>
     <div class="card">
       <div class="ch"><h3>Recent rain, Tule Valley</h3><span class="u" id="ts-range"></span>
@@ -196,7 +196,7 @@
       <div class="plab"><b class="pl">c</b><span class="pt">Soil moisture, Tule Valley SCAN</span><span class="u">% by volume</span></div><ul class="kb" id="kb-hc"></ul><div class="cbox"><canvas id="h-soil"></canvas></div>
       <div class="plab"><b class="pl">d</b><span class="pt">Air temperature</span><span class="u">°F</span></div><ul class="kb" id="kb-hd"></ul><div class="cbox"><canvas id="h-temp"></canvas></div>
       <p class="cap" id="cap-h"></p>
-      <div class="zoomnote">Phone: press and hold, then drag to zoom a period; pinch to zoom; tap or slide to read values; double tap to reset. Mouse: drag to zoom, double click to reset.</div>
+      <div class="zoomnote">Phone: tap or slide to read values (tap outside a chart to close the readout); press and hold, then drag to zoom a period; double tap to reset. Mouse: drag to zoom, double click to reset.</div>
     </div>
   </div>
   <div class="col">
@@ -570,6 +570,38 @@ Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
 Chart.defaults.font.weight = '600';
 Chart.defaults.font.size = 10.5;
 const NARROW = window.innerWidth < 600, AXIS_W = NARROW ? 54 : 66, Y2_W = 46, RIGHT_PAD = 112; // phones: see timeChart
+// Tooltip lookup: every visible series' value at the time under the finger or cursor. Chart.js's
+// 'nearest' mode lists only the series whose points sit closest in time, so gauges that report at
+// different moments dropped in and out at random. Stepped series (running totals, flow, snow) show
+// the value in effect (last point at or before that time); others show the nearest point unless it is
+// far away compared with the series' usual spacing (a data gap); bars only within their own hour.
+Chart.Interaction.modes.atTime = (chart, e) => {
+  const sx = chart.scales.x; if (!sx) return [];
+  const pos = Chart.helpers.getRelativePosition(e, chart), ca = chart.chartArea;
+  if (pos.x < ca.left || pos.x > ca.right) return [];
+  chart._atTime = sx.getValueForPixel(pos.x);
+  const hourPx = Math.abs(sx.getPixelForValue(chart._atTime + HOUR) - sx.getPixelForValue(chart._atTime));
+  const items = [];
+  chart.data.datasets.forEach((ds, di) => {
+    if (!chart.isDatasetVisible(di)) return;
+    const meta = chart.getDatasetMeta(di), els = meta.data; if (!els || !els.length) return;
+    let lo = 0, hi = els.length; while (lo < hi) { const m = (lo + hi) >> 1; if (els[m].x <= pos.x) lo = m + 1; else hi = m; }
+    const iL = lo - 1, iR = lo < els.length ? lo : -1, isBar = meta.type === 'bar';
+    let idx;
+    if (((ds.stepped && ds.stepped !== 'middle') || ds.hold) && !isBar) idx = iL; // hold: drawn as flat forecast periods // 'middle' steps are centered on their point, so use the nearest
+    else {
+      if (meta._medDx == null) { const dx = []; for (let k = 1; k < els.length && dx.length < 400; k++) dx.push(els[k].x - els[k - 1].x); dx.sort((p, q) => p - q); meta._medDx = dx.length ? dx[dx.length >> 1] : 0; }
+      const dl = iL >= 0 ? pos.x - els[iL].x : Infinity, dr = iR >= 0 ? els[iR].x - pos.x : Infinity;
+      idx = dl <= dr ? iL : iR;
+      const lim = isBar ? Math.max(hourPx / 2, 4) : ds.showLine === false ? Math.max(hourPx / 2, 6) : Math.max(3 * hourPx, 1.5 * meta._medDx, 10);
+      if (Math.min(dl, dr) > lim) idx = -1;
+    }
+    if (idx == null || idx < 0 || !els[idx] || els[idx].skip) return;
+    const pv = meta._parsed && meta._parsed[idx]; if (pv && (pv.y == null || Number.isNaN(pv.y))) return;
+    items.push({ element: els[idx], datasetIndex: di, index: idx });
+  });
+  return items;
+};
 Chart.register({
   id: 'paper',
   beforeDatasetsDraw(chart, _a, o) {
@@ -634,6 +666,14 @@ function tickLabel(v, span, tick) {
 const axisStyle = () => ({ border: { display: true, color: INK, width: 1.25 }, grid: { display: true, drawOnChartArea: false, drawTicks: true, tickLength: 5, color: INK, lineWidth: 1.25 } });
 const timeGrid = () => ({ display: true, drawOnChartArea: true, drawTicks: true, tickLength: 5, tickColor: INK, lineWidth: c => c.tick && c.tick.major ? 1 : 1.25, color: c => c.tick && c.tick.major ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0)' });
 const charts = {};
+
+// Tap or click outside a chart closes its value readout and the hover line; tapping another chart
+// closes the readouts on all the others.
+document.addEventListener('pointerdown', e => {
+  const hit = e.target && e.target.closest ? e.target.closest('.cbox canvas') : null;
+  for (const c of Object.values(charts)) { if (c.canvas !== hit && c.tooltip && c.tooltip.getActiveElements().length) { c.tooltip.setActiveElements([], { x: 0, y: 0 }); c.setActiveElements([]); c.update('none'); } }
+  if (!hit && S.hover != null) { S.hover = null; redrawSynced(null); }
+}, true);
 function redrawSynced(except, g) { for (const c of Object.values(charts)) { const o = c.options.plugins.paper; if (c !== except && o && o.sync && (g == null || o.group === g)) c.draw(); } }
 function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, legend = false, paper = {}, type = 'line', tooltipLabel, xRange, decimate = true, rightPad, yTitle = '', y2 = null, reserveY2 = false } = {}) {
   const [a, b] = xRange || VIEW(), span = b - a;
@@ -645,12 +685,12 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
     options: {
       animation: false, responsive: true, maintainAspectRatio: false, parsing: false, normalized: true,
       layout: { padding: { right: rightPad != null ? rightPad : endLabels ? RIGHT_PAD : 10, top: 4 } },
-      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      interaction: { mode: 'atTime', intersect: false },
       onHover: (e, _el, ch) => { const o = ch.options.plugins.paper; if (!o.sync) return; const xv = ch.scales.x.getValueForPixel(e.x); S.hover = (xv >= ch.scales.x.min && xv <= ch.scales.x.max) ? { g: o.group, x: xv } : null; redrawSynced(ch, o.group); },
       plugins: {
         legend: legend ? { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, padding: 8, color: INK2, font: { size: 10 } } } : { display: false },
         tooltip: { backgroundColor: 'rgba(255,255,255,0.96)', titleColor: INK, bodyColor: INK, borderColor: INK, borderWidth: 0.5, cornerRadius: 2, padding: 6, boxWidth: 8, boxHeight: 8,
-          callbacks: { title: it => it.length ? fmtDT(it[0].parsed.x, { tz: true }) : '', label: tooltipLabel || (c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}`) } },
+          itemSort: (p, q) => (q.parsed.y || 0) - (p.parsed.y || 0), callbacks: { title: it => it.length ? fmtDT(it[0].chart._atTime != null ? it[0].chart._atTime : it[0].parsed.x, { tz: true }) : '', label: tooltipLabel || (c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}`) } },
         decimation: { enabled: decimate && type === 'line', algorithm: 'min-max' },
         paper: { sync: true, group: 'h', events: [], cells: [], ...paper, endLabels },
       },
@@ -678,18 +718,14 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
     else if (lg) lg.remove(); }
   el.onmouseleave = () => { S.hover = null; redrawSynced(null); };
   if (cfg.options.plugins.paper.sync) {
-    // One finger or mouse: drag sideways to zoom the group to that span. Two fingers: pinch to zoom,
-    // move them to pan. Double tap or double click resets. .cbox has touch-action: pan-y, so vertical
-    // swipes still scroll the page and the browser leaves pinches on the charts to us.
+    // Mouse: drag sideways to zoom the group to that span; double click resets. Touch: tap or slide
+    // reads values; press and hold, then drag, zooms a period; double tap resets. Pinch is left to the
+    // browser, so it zooms the page like anywhere else (.cbox allows pan-y and pinch-zoom).
     const ch = charts[id], g = cfg.options.plugins.paper.group, ptrs = new Map(), px = e => e.clientX - el.getBoundingClientRect().left;
     const group = () => Object.values(charts).filter(c => c.options.plugins.paper && c.options.plugins.paper.group === g);
     el.onpointerdown = e => {
       ptrs.set(e.pointerId, px(e)); try { el.setPointerCapture(e.pointerId); } catch (_) { }
-      if (ptrs.size === 2) {
-        clearTimeout(el._lpT); el._lp = null; S.drag = null; const [x0, x1] = [...ptrs.values()], sc = ch.scales.x, ca = ch.chartArea;
-        el._pinch = { d0: Math.max(20, Math.abs(x1 - x0)), v0: sc.getValueForPixel((x0 + x1) / 2), span0: sc.max - sc.min, left: ca.left, w: ca.right - ca.left, range: null };
-        return;
-      }
+      if (ptrs.size === 2) { clearTimeout(el._lpT); el._lp = null; S.drag = null; el._multi = true; return; } // two fingers: browser pinch zoom
       if (ptrs.size > 2) return;
       const v = ch.scales.x.getValueForPixel(px(e)); if (v < ch.scales.x.min || v > ch.scales.x.max) return;
       if (e.pointerType !== 'mouse') { // touch: tap or slide reads values; press and hold 350 ms, then drag, zooms
@@ -701,21 +737,12 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
     };
     el.onpointermove = e => {
       if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, px(e));
-      const pz = el._pinch;
-      if (pz && ptrs.size === 2) {
-        const [x0, x1] = [...ptrs.values()], full = cfg.options.plugins.paper.full || [ch.scales.x.min, ch.scales.x.max];
-        let span = Math.max(HOUR, Math.min(full[1] - full[0], pz.span0 * pz.d0 / Math.max(20, Math.abs(x1 - x0))));
-        let a = pz.v0 - ((x0 + x1) / 2 - pz.left) / pz.w * span; a = Math.max(full[0], Math.min(full[1] - span, a));
-        pz.range = [a, a + span];
-        for (const c of group()) { c.options.scales.x.min = a; c.options.scales.x.max = a + span; c.update('none'); }
-        return;
-      }
       if (el._lp && !S.drag && Math.abs(px(e) - el._lp.x) > 10) { clearTimeout(el._lpT); el._lp = null; } // moved first: just reading values
       if (!S.drag || S.drag.g !== g) return; if (S.drag.touch || Math.abs(px(e) - S.drag.px) > 8) { S.drag.x1 = px(e); S.drag.v1 = Math.max(ch.scales.x.min, Math.min(ch.scales.x.max, ch.scales.x.getValueForPixel(px(e)))); redrawSynced(null, g); }
     };
     el.onpointerup = e => {
       ptrs.delete(e.pointerId); clearTimeout(el._lpT); el._lp = null;
-      if (el._pinch) { if (ptrs.size === 0) { const r = el._pinch.range, full = cfg.options.plugins.paper.full; el._pinch = null; if (r) setView(g, full && r[1] - r[0] >= full[1] - full[0] - MIN ? null : r); } return; }
+      if (el._multi) { if (!ptrs.size) el._multi = false; return; }
       const d = S.drag; S.drag = null;
       if (d && d.x1 != null && Math.abs(d.v1 - d.v0) > 20 * MIN) { setView(g, [Math.min(d.v0, d.v1), Math.max(d.v0, d.v1)]); return; }
       if (d && d.touch) { redrawSynced(null, g); return; }
@@ -723,7 +750,7 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
       redrawSynced(null, g);
     };
     el.oncontextmenu = e => e.preventDefault();
-    el.onpointercancel = e => { ptrs.delete(e.pointerId); clearTimeout(el._lpT); el._lp = null; if (!ptrs.size) { const r = el._pinch && el._pinch.range; el._pinch = null; S.drag = null; if (r) setView(g, r); else redrawSynced(null, g); } };
+    el.onpointercancel = e => { ptrs.delete(e.pointerId); clearTimeout(el._lpT); el._lp = null; if (!ptrs.size) { el._multi = false; S.drag = null; redrawSynced(null, g); } };
     el.ondblclick = () => setView(g, null);
   }
   return charts[id];
@@ -765,16 +792,16 @@ function renderForecast() {
   const n = S.nws; if (!n) return;
   const now = Date.now(), end = Math.max(...PTS.map(p => seriesEnd(n[p.key] ? n[p.key].pop : []) || now + DAY)), full = [now - 2 * HOUR, end], xr = S.views.f || full;
   const band = { ...tripBand(), group: 'f', full }, cut = s => s.filter(x => x.b > full[0] && x.a < full[1]);
-  const line = (p, s, label, extra = {}) => ({ label: `${p.name}${label}`, endLabel: p === CAMP ? 'Camp' : 'Marjum', data: stepPts(cut(s)), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3], ...extra });
+  const line = (p, s, label, extra = {}) => ({ label: `${p.name}${label}`, endLabel: p === CAMP ? 'Camp' : 'Marjum', data: stepPts(cut(s)), hold: true, borderColor: p.color, backgroundColor: p.color, labelColor: p.color, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3], ...extra });
   const pop = [line(CAMP, n.camp.pop, ', rain'), line(MARJUM, n.marjum.pop, ', rain')];
-  if (n.camp.thunder.some(x => x.v > 0)) pop.push({ label: 'Painter Spring, thunder', endLabel: 'Thunder', data: stepPts(cut(n.camp.thunder)), borderColor: '#555', backgroundColor: '#555', labelColor: '#555', borderWidth: 1.2, borderDash: [1, 2.5] });
+  if (n.camp.thunder.some(x => x.v > 0)) pop.push({ label: 'Painter Spring, thunder', endLabel: 'Thunder', data: stepPts(cut(n.camp.thunder)), hold: true, borderColor: '#555', backgroundColor: '#555', labelColor: '#555', borderWidth: 1.2, borderDash: [1, 2.5] });
   timeChart('f-pop', pop, { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Chance, %', paper: band, y: { min: 0, max: 100, ticks: { stepSize: 25, color: INK } }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y}%` });
   const run = s => { const out = [{ x: full[0], y: 0 }]; let c = 0; for (const x of s) { if (x.b <= now) continue; const f = Math.min(1, (x.b - Math.max(x.a, now)) / (x.b - x.a)); c += x.v * f; out.push({ x: x.b, y: c }); } return out; };
   timeChart('f-qpf', PTS.map(p => ({ label: p.name, endLabel: `${p === CAMP ? 'Camp' : 'Marjum'} ${run(n[p.key].qpf).pop().y.toFixed(1)}`, data: run(n[p.key].qpf), borderColor: p.color, backgroundColor: p.color, labelColor: p.color, stepped: true, borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: p === CAMP ? undefined : [4, 3] })),
     { xRange: xr, endLabels: true, decimate: false, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, paper: band, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
-  timeChart('f-temp', PTS.map(p => line(p, n[p.key].temp, '')).map(d => ({ ...d, data: cut(n[d.label === CAMP.name ? 'camp' : 'marjum'].temp).map(x => ({ x: x.a + (x.b - x.a) / 2, y: cToF(x.v) })) })),
+  timeChart('f-temp', PTS.map(p => line(p, n[p.key].temp, '')).map(d => ({ ...d, hold: false, data: cut(n[d.label === CAMP.name ? 'camp' : 'marjum'].temp).map(x => ({ x: x.a + (x.b - x.a) / 2, y: cToF(x.v) })) })),
     { xRange: xr, endLabels: true, decimate: false, reserveY2: true, yTitle: 'Air temp, °F', paper: { ...band, hlines: [{ y: 32, label: '32 °F', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °F` });
-  timeChart('f-wind', [{ label: 'Gust', endLabel: 'Gust', data: stepPts(cut(n.camp.gust)), borderColor: '#9a988f', backgroundColor: '#9a988f', labelColor: INK3, borderWidth: 1.2 }, { label: 'Wind', endLabel: 'Wind', data: stepPts(cut(n.camp.wind)), borderColor: INK, backgroundColor: INK, labelColor: INK, borderWidth: 2 }],
+  timeChart('f-wind', [{ label: 'Gust', endLabel: 'Gust', data: stepPts(cut(n.camp.gust)), hold: true, borderColor: '#9a988f', backgroundColor: '#9a988f', labelColor: INK3, borderWidth: 1.2 }, { label: 'Wind', endLabel: 'Wind', data: stepPts(cut(n.camp.wind)), hold: true, borderColor: INK, backgroundColor: INK, labelColor: INK, borderWidth: 2 }],
     { xRange: xr, endLabels: true, decimate: false, yTitle: 'km/h', y2: { title: 'mph', conv: v => v / 1.609, dec: 0 }, paper: band, y: { beginAtZero: true }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} km/h (${(c.parsed.y / 1.609).toFixed(0)} mph)` });
   const c = tripStats('camp'), m = tripStats('marjum'), A = [], B = [], D = [];
   if (c && c.popEnd != null && c.popEnd < TRIP.b) A.push(`<span class="flag">The forecast ends ${fmtDT(c.popEnd)}, before the trip does</span>`);
