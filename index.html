@@ -812,7 +812,7 @@ function renderForecast() {
   const gmax = maxIn(n.camp.gust, TRIP.a, TRIP.b); if (gmax.v >= 50) D.push(`<span class="flag">Gusts to ${gmax.v.toFixed(0)} km/h (${(gmax.v / 1.609).toFixed(0)} mph) during the trip, ${fmtDT(gmax.at)}</span>`);
   put('kb-fa', A); put('kb-fb', B); put('kb-fc', []); put('kb-fd', D);
   document.getElementById('f-range').textContent = `issued ${fmtDT(n.camp.updated, { tz: true })}`;
-  document.getElementById('cap-f').innerHTML = `Solid is Painter Spring, dashed Marjum Pass; gray band is your trip, Mon to Wed. <b>a</b> Chance is for each forecast period, so a long flat step is one broad period, not steady rain. <b>b</b> NWS amounts (QPF) added up from now. <b>d</b> 1 km/h = 0.62 mph.`;
+  document.getElementById('cap-f').innerHTML = `NWS gridded forecast. Solid: Painter Spring; dashed: Marjum Pass; gray band: the trip, Mon to Wed. <b>a</b> Chance for each forecast period, so a long flat step is one broad period, not steady rain. <b>b</b> NWS amounts (QPF) summed from now. <b>d</b> 1 km/h = 0.62 mph.`;
 }
 
 function renderHistory() {
