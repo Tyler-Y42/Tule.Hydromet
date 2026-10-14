@@ -69,7 +69,7 @@
   .tile.alert { border-color: var(--radar); }
   .tile.alert .v { color: var(--radar); }
   @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  @media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tile .s { white-space: normal; overflow: visible; line-height: 1.3; } .tile .v { font-size: 1.15rem; white-space: normal; } }
   .alertline { font-size: 0.82rem; color: var(--flag); margin: -2px 0 8px; }
   .alertline:empty { display: none; }
   /* dashboard grid */
@@ -432,11 +432,11 @@ const NWS_GRID = { camp: 'https://api.weather.gov/gridpoints/SLC/38,112', marjum
 const TRIP = { a: denverToUtc(2026, 10, 12), b: denverToUtc(2026, 10, 15), label: 'Mon to Wed' }; // Mon 10/12 00:00 through the end of Wed 10/14
 const AWDB = 'https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1';
 const SCAN_TRIP = '2163:UT:SCAN', SCAN_TZ = -7 * HOUR; // SCAN hourly stamps are MST (checked against MesoWest TULU1)
-const SCAN = { id: 'TULU1', name: 'Tule Valley SCAN', short: 'Valley SCAN', elev: 4600, lat: 39.2372, lon: -113.4587, net: 'NRCS soil climate (SCAN)', group: 'valley', color: '#0072B2', link: 'https://wcc.sc.egov.usda.gov/nwcc/site?sitenum=2163' };
+const SCAN = { id: 'TULU1', name: 'Tule Valley SCAN', short: 'Valley SCAN', elev: 4600, lat: 39.2372, lon: -113.4587, net: 'NRCS SCAN', group: 'valley', color: '#0072B2', link: 'https://wcc.sc.egov.usda.gov/nwcc/site?sitenum=2163' };
 const STATIONS = [
-  { id: 'TVWU1', name: 'Tule Valley RAWS', short: 'Valley RAWS', elev: 5081, lat: 39.3502, lon: -113.3849, net: 'BLM fire weather (RAWS)', mode: 'accum', group: 'valley', color: '#009E73' },
-  { id: 'KCWU1', name: 'King Canyon', short: 'King Canyon', elev: 6283, lat: 39.0744, lon: -113.6390, net: 'UDOT road weather', mode: 'ten', group: 'valley', color: '#CC79A7' },
-  { id: 'NSNA', name: 'Snake Valley', short: 'Snake Valley', elev: 5180, lat: 39.0211, lon: -114.0897, net: 'Desert Research Institute', mode: 'accum', group: 'context', color: '#b5b3ab' },
+  { id: 'TVWU1', name: 'Tule Valley RAWS', short: 'Valley RAWS', elev: 5081, lat: 39.3502, lon: -113.3849, net: 'BLM RAWS', mode: 'accum', group: 'valley', color: '#009E73' },
+  { id: 'KCWU1', name: 'King Canyon', short: 'King Canyon', elev: 6283, lat: 39.0744, lon: -113.6390, net: 'UDOT', mode: 'ten', group: 'valley', color: '#CC79A7' },
+  { id: 'NSNA', name: 'Snake Valley', short: 'Snake Valley', elev: 5180, lat: 39.0211, lon: -114.0897, net: 'DRI', mode: 'accum', group: 'context', color: '#b5b3ab' },
 ];
 const ALL_ST = [SCAN, ...STATIONS];
 const mesoLink = id => `https://mesowest.utah.edu/cgi-bin/droman/meso_base_dyn.cgi?stn=${id}`;
@@ -689,7 +689,7 @@ function timeChart(id, datasets, { y = {}, showX = false, endLabels = false, leg
       onHover: (e, _el, ch) => { const o = ch.options.plugins.paper; if (!o.sync) return; const xv = ch.scales.x.getValueForPixel(e.x); S.hover = (xv >= ch.scales.x.min && xv <= ch.scales.x.max) ? { g: o.group, x: xv } : null; redrawSynced(ch, o.group); },
       plugins: {
         legend: legend ? { display: true, position: 'top', align: 'start', labels: { boxWidth: 10, boxHeight: 8, padding: 8, color: INK2, font: { size: 10 } } } : { display: false },
-        tooltip: { backgroundColor: 'rgba(255,255,255,0.96)', titleColor: INK, bodyColor: INK, borderColor: INK, borderWidth: 0.5, cornerRadius: 2, padding: 6, boxWidth: 8, boxHeight: 8,
+        tooltip: { backgroundColor: 'rgba(255,255,255,0.97)', titleColor: INK, bodyColor: INK, borderColor: INK, borderWidth: 0.5, cornerRadius: 3, padding: 7, boxWidth: 9, boxHeight: 9, boxPadding: 4, titleFont: { size: 12, weight: '800' }, bodyFont: { size: 12, weight: '600' }, bodySpacing: 3,
           itemSort: (p, q) => (q.parsed.y || 0) - (p.parsed.y || 0), callbacks: { title: it => it.length ? fmtDT(it[0].chart._atTime != null ? it[0].chart._atTime : it[0].parsed.x, { tz: true }) : '', label: tooltipLabel || (c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}`) } },
         decimation: { enabled: decimate && type === 'line', algorithm: 'min-max' },
         paper: { sync: true, group: 'h', events: [], cells: [], ...paper, endLabels },
@@ -829,14 +829,14 @@ function renderHistory() {
   const cum = [];
   const cumLine = (label, endName, incs, color, opts = {}) => { const pts = [{ x: a, y: 0 }]; let c = 0; for (const x of incs) if (x.t > a && x.t <= b && x.mm > 0) { c = r3(c + x.mm); pts.push({ x: x.t, y: c }); } pts.push({ x: Math.min(b, Date.now()), y: c }); return { label, endLabel: `${endName} ${mmStr(c, 1)}`, data: pts, borderColor: color, backgroundColor: color, labelColor: color, stepped: true, ...opts }; };
   if (S.iem) for (const p of PTS) cum.push(cumLine(`${p.name}, radar`, p === CAMP ? 'Camp' : 'Marjum', S.iem[p.key], p.color, { borderWidth: p === CAMP ? 2.5 : 1.6, borderDash: [4, 3] }));
-  for (const s of ALL_ST) { const p = S.P[s.id]; if (!p || !p.obs.length) continue; cum.push(cumLine(`${s.name} (${s.id}), ${ft(s.elev)} ft, ${kmFrom(CAMP, s).toFixed(0)} km`, s.short, p.incs.filter(x => x.include), s.color, { borderWidth: s.group === 'valley' ? 2.2 : 1.1, labelColor: s.group === 'valley' ? s.color : INK3 })); }
+  for (const s of ALL_ST) { const p = S.P[s.id]; if (!p || !p.obs.length) continue; cum.push(cumLine(`${s.short} (${s.id}), ${s.net}, ${ft(s.elev)} ft`, s.short, p.incs.filter(x => x.include), s.color, { borderWidth: s.group === 'valley' ? 2.2 : 1.1, labelColor: s.group === 'valley' ? s.color : INK3 })); }
   timeChart('h-cum', cum, { endLabels: true, decimate: false, xRange: [va, vb], paper: { full: [a, b] }, yTitle: 'Total, mm', y2: { title: 'in', conv: v => v / 25.4 }, y: { beginAtZero: true, suggestedMax: 2 }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} mm (${inch(c.parsed.y)})` });
   const soil = [], SC = { 2: '#0072B2', 4: '#56B4E9', 8: '#009E73', 20: '#8a6d3b', 40: '#9a988f' };
   if (S.scan) for (const d of SMS_DEPTHS) { const v = S.scan.sms[d]; if (v && v.length) soil.push({ label: `${d} in deep`, endLabel: `${d} in`, data: v.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: x.v })), borderColor: SC[d], backgroundColor: SC[d], labelColor: SC[d], borderWidth: d === 2 ? 2.2 : 1.4 }); }
   timeChart('h-soil', soil, { endLabels: true, xRange: [va, vb], paper: { full: [a, b] }, reserveY2: true, yTitle: 'Water, %', tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` });
   const tds = [];
-  if (S.scan && S.scan.tobs.length) tds.push({ label: 'Tule Valley SCAN, 4,600 ft', endLabel: `Valley ${ft(SCAN.elev)}`, data: S.scan.tobs.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: cToF(x.v) })), borderColor: SCAN.color, backgroundColor: SCAN.color, labelColor: SCAN.color, borderWidth: 2.2 });
-  for (const s of STATIONS.filter(x => x.group === 'valley')) { const st = S.syn && S.syn[s.id]; if (!st || !st.v.air_temp) continue; const pts = []; st.t.forEach((t, i) => { const v = st.v.air_temp[i]; if (v != null && t >= a && t <= b) pts.push({ x: t, y: cToF(v) }); }); if (pts.length) tds.push({ label: `${s.name}, ${ft(s.elev)} ft`, endLabel: `${s.short.replace('Valley ', '')} ${ft(s.elev)}`, data: pts, borderColor: s.color, backgroundColor: s.color, labelColor: s.color, borderWidth: 1.4 }); }
+  if (S.scan && S.scan.tobs.length) tds.push({ label: 'Valley SCAN (TULU1), NRCS SCAN, 4,600 ft', endLabel: `Valley ${ft(SCAN.elev)}`, data: S.scan.tobs.filter(x => x.t >= a && x.t <= b).map(x => ({ x: x.t, y: cToF(x.v) })), borderColor: SCAN.color, backgroundColor: SCAN.color, labelColor: SCAN.color, borderWidth: 2.2 });
+  for (const s of STATIONS.filter(x => x.group === 'valley')) { const st = S.syn && S.syn[s.id]; if (!st || !st.v.air_temp) continue; const pts = []; st.t.forEach((t, i) => { const v = st.v.air_temp[i]; if (v != null && t >= a && t <= b) pts.push({ x: t, y: cToF(v) }); }); if (pts.length) tds.push({ label: `${s.short} (${s.id}), ${s.net}, ${ft(s.elev)} ft`, endLabel: `${s.short.replace('Valley ', '')} ${ft(s.elev)}`, data: pts, borderColor: s.color, backgroundColor: s.color, labelColor: s.color, borderWidth: 1.4 }); }
   timeChart('h-temp', tds, { endLabels: true, xRange: [va, vb], reserveY2: true, yTitle: 'Air temp, °F', paper: { full: [a, b], hlines: [{ y: 32, label: '32 °F', color: INK2 }] }, tooltipLabel: c => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} °F` });
   document.getElementById('ts-range').textContent = `${fmtDT(va)} to ${fmtDT(vb, { tz: true })}${S.views.h ? ' (zoomed)' : ''}`;
   const A = [], C = [];
